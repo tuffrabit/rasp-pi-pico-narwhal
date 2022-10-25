@@ -6,6 +6,7 @@ class StickDeadzone:
         self.edgeAdjust = 0
         self.upperBoundary = 0
         self.lowerBoundary = 0
+        self.deadzoneBuffer = 1000
 
     def getDeadzone(self):
         return self.deadzone
@@ -18,6 +19,9 @@ class StickDeadzone:
 
     def getLowerBoundary(self):
         return self.lowerBoundary
+
+    def setDeadzoneBuffer(self, deadzoneBuffer):
+        self.deadzoneBuffer = deadzoneBuffer
 
     def initDeadzone(self, analogX, analogY):
         startTime = time.monotonic()
@@ -57,7 +61,7 @@ class StickDeadzone:
         self.initBoundary()
 
     def initBoundary(self):
-        self.deadzone = self.deadzone + 1000
+        self.deadzone = self.deadzone + self.deadzoneBuffer
         self.edgeAdjust = self.deadzone + 250
         self.upperBoundary = 32768 + self.deadzone
         self.lowerBoundary = 32768 - self.deadzone

@@ -37,6 +37,4 @@ class Startup:
         if isKeyboardMode == False:
             self.led.setLedState(False)
 
-        self.led.setRGBLedColor(3, 253, 252)#teal
-
         return isKeyboardMode

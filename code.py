@@ -3,6 +3,7 @@ import digitalio
 import analogio
 import usb_hid
 import keypad
+import gc
 
 from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.keyboard_layout_us import KeyboardLayoutUS
@@ -13,17 +14,13 @@ from stick import Stick
 from led import Led
 from startup import Startup
 from kbMode import KbMode
+from config import Config
+from profileManager import ProfileManager
+from profileHelper import ProfileHelper
+from keyConverter import KeyConverter
 
 # Key Bindings
 BUTTON_JOYSTICK_1_KEY = 1
-KEYBOARD_MODE_STICK_UP_KEY = Keycode.W
-KEYBOARD_MODE_STICK_DOWN_KEY = Keycode.S
-KEYBOARD_MODE_STICK_LEFT_KEY = Keycode.A
-KEYBOARD_MODE_STICK_RIGHT_KEY = Keycode.D
-
-# Configurable Values
-KEYBOARD_MODE_X_START_OFFSET = 10
-KEYBOARD_MODE_Y_START_OFFSET = 10
 
 # Globals
 keyboard = Keyboard(usb_hid.devices)
@@ -34,12 +31,28 @@ stick = Stick()
 led = Led()
 kbMode = KbMode()
 startup = Startup()
+config = Config()
+profileManager = ProfileManager()
+profileHelper = ProfileHelper()
+keyConverter = KeyConverter()
+currentProfile = None
 deadzone = 0
 isKeyboardMode = False
+keys = None
+keyboardModeStickUpKey = None
+keyboardModeStickDownKey = None
+keyboardModeStickLeftKey = None
+keyboardModeStickRightKey = None
 
-#Setup
-kbMode.setXStartOffset(KEYBOARD_MODE_X_START_OFFSET)
-kbMode.setYStartOffset(KEYBOARD_MODE_Y_START_OFFSET)
+# Config
+config.loadFromFile()
+profileManager.setConfig(config)
+profileHelper.setKeyConverter(keyConverter)
+currentProfile = profileManager.getInitialProfile()
+
+# Setup
+kbMode.setXStartOffset(config.kbModeOffsets['x'])
+kbMode.setYStartOffset(config.kbModeOffsets['y'])
 kbMode.setKeyboard(keyboard)
 led.setRGBLed(board.GP21, board.GP20, board.GP19)
 startup.setLed(led)
@@ -63,30 +76,10 @@ keyMatrix = keypad.KeyMatrix(
     column_pins=(board.GP1, board.GP2, board.GP3, board.GP4, board.GP5),
 )
 
-keys = [Keycode.ESCAPE,
-    Keycode.ONE,
-    Keycode.O,
-    Keycode.F1,
-    Keycode.M,
-    Keycode.TAB,
-    Keycode.B,
-    Keycode.Q,
-    Keycode.R,
-    Keycode.E,
-    Keycode.LEFT_CONTROL,
-    Keycode.F,
-    Keycode.X,
-    Keycode.LEFT_SHIFT,
-    Keycode.SPACE,
-    Keycode.F12,
-    Keycode.Z,
-    Keycode.X,
-    Keycode.V,
-    Keycode.C]
-
 # Handle deadzone calc
 led.setLedState(True)
 led.setRGBLedColor(0, 255, 0)
+stickDeadzone.setDeadzoneBuffer(config.deadzoneSize)
 stickDeadzone.initDeadzone(ax, ay)
 deadzone = stickDeadzone.getDeadzone()
 stick.setDeadzone(stickDeadzone)
@@ -94,7 +87,19 @@ led.setLedState(False)
 led.setRGBLedColor(0, 0, 255)
 
 # Handle startup flags
-isKeyboardMode = startup.detectStartupFlags(joySelectButton)
+startup.detectStartupFlags(joySelectButton)
+
+# Profile specific stuff
+rgbLedValues = profileHelper.getRGBLedValues(currentProfile)
+led.setRGBLedColor(rgbLedValues["red"], rgbLedValues["green"], rgbLedValues["blue"])
+isKeyboardMode = profileHelper.getIsKbModeEnabled(currentProfile)
+keys = profileHelper.getKeypadBindings(currentProfile)
+keyboardModeStickUpKey = profileHelper.getKbModeBinding("up", currentProfile)
+keyboardModeStickDownKey = profileHelper.getKbModeBinding("down", currentProfile)
+keyboardModeStickLeftKey = profileHelper.getKbModeBinding("left", currentProfile)
+keyboardModeStickRightKey = profileHelper.getKbModeBinding("right", currentProfile)
+
+print("free memory: " + str(gc.mem_alloc()))
 
 while True:
     if joySelectButton.value:
@@ -111,10 +116,10 @@ while True:
 
     if isKeyboardMode:
         pressedValues = kbMode.calculateStickInput(stickValues)
-        kbMode.handleKeyboundModeKey(KEYBOARD_MODE_STICK_UP_KEY, pressedValues[0])
-        kbMode.handleKeyboundModeKey(KEYBOARD_MODE_STICK_DOWN_KEY, pressedValues[1])
-        kbMode.handleKeyboundModeKey(KEYBOARD_MODE_STICK_LEFT_KEY, pressedValues[2])
-        kbMode.handleKeyboundModeKey(KEYBOARD_MODE_STICK_RIGHT_KEY, pressedValues[3])
+        kbMode.handleKeyboundModeKey(keyboardModeStickUpKey, pressedValues[0])
+        kbMode.handleKeyboundModeKey(keyboardModeStickDownKey, pressedValues[1])
+        kbMode.handleKeyboundModeKey(keyboardModeStickLeftKey, pressedValues[2])
+        kbMode.handleKeyboundModeKey(keyboardModeStickRightKey, pressedValues[3])
     else:
         gp.move_joysticks(x=stickValues[0], y=stickValues[1])
 
