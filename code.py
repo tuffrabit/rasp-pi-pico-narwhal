@@ -4,6 +4,7 @@ import analogio
 import usb_hid
 import keypad
 import gc
+import time
 
 from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.keyboard_layout_us import KeyboardLayoutUS
@@ -19,8 +20,11 @@ from profileManager import ProfileManager
 from profileHelper import ProfileHelper
 from keyConverter import KeyConverter
 
-# Key Bindings
-BUTTON_JOYSTICK_1_KEY = 1
+# Performance stuff
+# Speed values
+# ActionType: KEY = 1
+# ActionType: GAMEPAD = 2
+# ActionType: PROFILE = 3
 
 # Globals
 keyboard = Keyboard(usb_hid.devices)
@@ -43,6 +47,37 @@ keyboardModeStickUpKey = None
 keyboardModeStickDownKey = None
 keyboardModeStickLeftKey = None
 keyboardModeStickRightKey = None
+stickButton = None
+thumbAction = None
+
+actionStates = {
+    "stickButton": False,
+    "thumbButton": False,
+    "kbUp": False,
+    "kbDown": False,
+    "kbLeft": False,
+    "kbRight": False,
+    "0": False,
+    "1": False,
+    "2": False,
+    "3": False,
+    "4": False,
+    "5": False,
+    "6": False,
+    "7": False,
+    "8": False,
+    "9": False,
+    "10": False,
+    "11": False,
+    "12": False,
+    "13": False,
+    "14": False,
+    "15": False,
+    "16": False,
+    "17": False,
+    "18": False,
+    "19": False
+}
 
 # Config
 config.loadFromFile()
@@ -89,44 +124,110 @@ led.setRGBLedColor(0, 0, 255)
 # Handle startup flags
 startup.detectStartupFlags(joySelectButton)
 
-# Profile specific stuff
-rgbLedValues = profileHelper.getRGBLedValues(currentProfile)
-led.setRGBLedColor(rgbLedValues["red"], rgbLedValues["green"], rgbLedValues["blue"])
-isKeyboardMode = profileHelper.getIsKbModeEnabled(currentProfile)
-keys = profileHelper.getKeypadBindings(currentProfile)
-keyboardModeStickUpKey = profileHelper.getKbModeBinding("up", currentProfile)
-keyboardModeStickDownKey = profileHelper.getKbModeBinding("down", currentProfile)
-keyboardModeStickLeftKey = profileHelper.getKbModeBinding("left", currentProfile)
-keyboardModeStickRightKey = profileHelper.getKbModeBinding("right", currentProfile)
+def setRunValuesFromCurrentProfile():
+    # Profile specific stuff
+    global profileHelper
+    global currentProfile
+    global rgbLedValues
+    global led
+    global isKeyboardMode
+    global keys
+    global keyboardModeStickUpKey
+    global keyboardModeStickDownKey
+    global keyboardModeStickLeftKey
+    global keyboardModeStickRightKey
+    global stickButton
+    global thumbAction
 
-print("free memory: " + str(gc.mem_alloc()))
+    rgbLedValues = profileHelper.getRGBLedValues(currentProfile)
+    led.setRGBLedColor(rgbLedValues["red"], rgbLedValues["green"], rgbLedValues["blue"])
+    isKeyboardMode = profileHelper.getIsKbModeEnabled(currentProfile)
+    keys = profileHelper.getKeypadBindings(currentProfile)
+    keyboardModeStickUpKey = profileHelper.getKbModeBinding("up", currentProfile)
+    keyboardModeStickDownKey = profileHelper.getKbModeBinding("down", currentProfile)
+    keyboardModeStickLeftKey = profileHelper.getKbModeBinding("left", currentProfile)
+    keyboardModeStickRightKey = profileHelper.getKbModeBinding("right", currentProfile)
+    stickButton = profileHelper.getJoystickButton(currentProfile)
+    thumbAction = profileHelper.getThumbButton(currentProfile)
+
+def handleAction(stateIndex, trigger, action):
+    global actionStates
+    goToNextProfile = False
+    goToPreviousProfile = False
+
+    if trigger != actionStates[stateIndex]:
+        actionStates[stateIndex] = trigger
+
+        if action["type"] == 1:
+            if trigger:
+                keyboard.press(action["action"])
+            else:
+                keyboard.release(action["action"])
+        elif action["type"] == 2:
+            if trigger:
+                gp.press_buttons(action["action"])
+            else:
+                gp.release_buttons(action["action"])
+        elif action["type"] == 3:
+            if trigger:
+                if action["action"] == "nextProfile":
+                    goToNextProfile = True
+                elif action["action"] == "previousProfile":
+                    goToPreviousProfile = True
+
+    return goToNextProfile, goToPreviousProfile
+
+setRunValuesFromCurrentProfile()
+#print("free memory: " + str(gc.mem_alloc()))
+
+goToNextProfile = False
+goToPreviousProfile = False
+#currentTime = time.monotonic()
+#iterations = 0
 
 while True:
-    if joySelectButton.value:
-        gp.release_buttons(BUTTON_JOYSTICK_1_KEY)
-    else:
-        gp.press_buttons(BUTTON_JOYSTICK_1_KEY)
+    #if time.monotonic() - currentTime > 1.0:
+    #    print("free memory: " + str(gc.mem_alloc()))
+    #    print("iterations: " + str(iterations))
+    #    print("")
+    #    iterations = 0
+    #    currentTime = time.monotonic()
 
-    if thumbButton.value:
-        keyboard.release(Keycode.ENTER)
-    else:
-        keyboard.press(Keycode.ENTER)
-
+    goToNextProfile, goToPreviousProfile = handleAction("stickButton", not joySelectButton.value, stickButton)
+    goToNextProfile, goToPreviousProfile = handleAction("thumbButton", not thumbButton.value, thumbAction)
     stickValues = stick.doStickCalculations(ax, ay, True)
 
     if isKeyboardMode:
-        pressedValues = kbMode.calculateStickInput(stickValues)
-        kbMode.handleKeyboundModeKey(keyboardModeStickUpKey, pressedValues[0])
-        kbMode.handleKeyboundModeKey(keyboardModeStickDownKey, pressedValues[1])
-        kbMode.handleKeyboundModeKey(keyboardModeStickLeftKey, pressedValues[2])
-        kbMode.handleKeyboundModeKey(keyboardModeStickRightKey, pressedValues[3])
+        up, down, left, right = kbMode.calculateStickInput(stickValues)
+        goToNextProfile, goToPreviousProfile = handleAction("kbUp", up, keyboardModeStickUpKey)
+        goToNextProfile, goToPreviousProfile = handleAction("kbDown", down, keyboardModeStickDownKey)
+        goToNextProfile, goToPreviousProfile = handleAction("kbLeft", left, keyboardModeStickLeftKey)
+        goToNextProfile, goToPreviousProfile = handleAction("kbRight", right, keyboardModeStickRightKey)
     else:
         gp.move_joysticks(x=stickValues[0], y=stickValues[1])
 
     keyEvent = keyMatrix.events.get()
 
     if keyEvent:
-        if keyEvent.pressed:
-            keyboard.press(keys[keyEvent.key_number])
-        else:
-            keyboard.release(keys[keyEvent.key_number])
+        keyNumber = keyEvent.key_number
+        keyAction = keys[keyNumber]
+        goToNextProfile, goToPreviousProfile = handleAction(str(keyNumber), keyEvent.pressed, keyAction)
+
+    if goToNextProfile or goToPreviousProfile:
+        profile = None
+
+        if goToNextProfile:
+            profile = profileManager.getNextProfile()
+        elif goToPreviousProfile:
+            profile = profileManager.getPreviousProfile()
+
+        goToNextProfile = False
+        goToPreviousProfile = False
+
+        if profile != None:
+            currentProfile = profile
+            setRunValuesFromCurrentProfile()
+            gp.release_all_buttons()
+            keyboard.release_all()
+
+    #iterations = iterations + 1

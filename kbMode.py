@@ -14,21 +14,24 @@ class KbMode:
         self.keyboard = keyboard
 
     def calculateStickInput(self, stickValues):
-        pressedValues = [False, False, False, False]
+        up = False
+        down = False
+        left = False
+        right = False
         xStick = stickValues[0]
         yStick = stickValues[1]
 
         if xStick > self.xStartOffset:
-            pressedValues[3] = True
+            right = True
         elif xStick < (self.xStartOffset * -1):
-            pressedValues[2] = True
+            left = True
 
         if yStick > self.yStartOffset:
-            pressedValues[1] = True
+            down = True
         elif yStick < (self.yStartOffset * -1):
-            pressedValues[0] = True
+            up = True
 
-        return pressedValues
+        return up, down, left, right
 
     def handleKeyboundModeKey(self, key, isPressed):
         if isPressed:

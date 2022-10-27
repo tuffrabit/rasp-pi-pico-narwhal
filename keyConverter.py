@@ -4,7 +4,9 @@ class KeyConverter:
     def getKeycodeFromId(self, keyId):
         keycode = None
 
-        if keyId == "nextProfile" or keyId == "previousProfile":
+        if (keyId == "nextProfile" or
+        keyId == "previousProfile" or
+        keyId.startswith("gamepadButton")):
             keycode = keyId
         elif keyId == "1":
             keycode = Keycode.ONE

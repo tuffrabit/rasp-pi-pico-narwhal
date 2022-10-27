@@ -13,6 +13,21 @@ class ProfileHelper:
 
         return isValid
 
+    def getAction(self, name):
+        action = {"type": None, "action": None}
+
+        if name == "nextProfile" or name == "previousProfile":
+            action["type"] = 3
+            action["action"] = name
+        elif name.startswith("gamepadButton"):
+            action["type"] = 2
+            action["action"] = int(name[13:])
+        else:
+            action["type"] = 1
+            action["action"] = self.keyConverter.getKeycodeFromId(name)
+
+        return action
+
     def getProfileProperty(self, propertyName, profile):
         profileProperty = None
 
@@ -26,7 +41,7 @@ class ProfileHelper:
         kbModeBindings = self.getProfileProperty("kbMode", profile)
 
         if isinstance(kbModeBindings, dict) and direction in kbModeBindings:
-            binding = self.keyConverter.getKeycodeFromId(kbModeBindings[direction])
+            binding = self.getAction(kbModeBindings[direction])
 
         return binding
 
@@ -38,7 +53,11 @@ class ProfileHelper:
 
     def getJoystickButton(self, profile):
         joystickButton = self.getProfileProperty("joystickButton", profile)
-        return self.keyConverter.getKeycodeFromId(joystickButton)
+        return self.getAction(joystickButton)
+
+    def getThumbButton(self, profile):
+        thumbButton = self.getProfileProperty("thumbButton", profile)
+        return self.getAction(thumbButton)
 
     def getKeypadBindings(self, profile):
         bindings = None
@@ -48,7 +67,7 @@ class ProfileHelper:
             bindings = []
 
             for keyId in profileKeyBindings:
-                bindings.append(self.keyConverter.getKeycodeFromId(keyId))
+                bindings.append(self.getAction(keyId))
 
         return bindings
 
