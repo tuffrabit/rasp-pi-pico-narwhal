@@ -1,4 +1,7 @@
 import usb_hid
+import usb_cdc
+
+usb_cdc.enable(console=True, data=True)
 
 # This is only one example of a gamepad descriptor, and may not suit your needs.
 GAMEPAD_REPORT_DESCRIPTOR = bytes(
@@ -62,4 +65,4 @@ gamepad = usb_hid.Device(
 
 usb_hid.enable(
     (usb_hid.Device.KEYBOARD, usb_hid.Device.CONSUMER_CONTROL, gamepad)
-)  # Write your code here :-)
+)

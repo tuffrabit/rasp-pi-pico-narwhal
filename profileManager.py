@@ -72,3 +72,13 @@ class ProfileManager:
                 profile = self.getProfileByIndex(newIndex)
 
         return profile
+
+    def getProfileNames(self):
+        names = []
+
+        if self.config != None and self.config.profiles and len(self.config.profiles) > 0:
+            for profile in self.config.profiles:
+                if isinstance(profile, dict) and "name" in profile:
+                    names.append(profile["name"])
+
+        return names
