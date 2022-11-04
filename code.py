@@ -87,6 +87,7 @@ config.loadFromFile()
 profileManager.setConfig(config)
 profileHelper.setKeyConverter(keyConverter)
 currentProfile = profileManager.getInitialProfile()
+serialHelper.setConfig(config)
 serialHelper.setProfileManager(profileManager)
 
 # Setup
@@ -186,6 +187,7 @@ setRunValuesFromCurrentProfile()
 
 goToNextProfile = False
 goToPreviousProfile = False
+reloadCurrentProfile = False
 #currentTime = time.monotonic()
 #iterations = 0
 
@@ -195,7 +197,12 @@ if usb_cdc.data:
 inBytes = bytearray()
 
 while True:
-    serialHelper.checkForCommands()
+    commandAction = serialHelper.checkForCommands()
+
+    if commandAction is not None:
+        if "profileChange" in commandAction and commandAction["profileChange"]:
+            reloadCurrentProfile = True
+
     #if usb_cdc.data and usb_cdc.data.in_waiting > 0:
         #byte = usb_cdc.data.read(1)
         #print("Serial In Byte: " + str(byte))
@@ -252,5 +259,12 @@ while True:
             setRunValuesFromCurrentProfile()
             gp.release_all_buttons()
             keyboard.release_all()
+
+    if reloadCurrentProfile:
+        reloadCurrentProfile = False
+        currentProfile = profileManager.getCurrentProfile()
+        setRunValuesFromCurrentProfile()
+        gp.release_all_buttons()
+        keyboard.release_all()
 
     #iterations = iterations + 1

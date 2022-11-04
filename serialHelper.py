@@ -4,7 +4,11 @@ import json
 class SerialHelper:
     def __init__(self):
         self.inBytes = bytearray()
+        self.config = None
         self.profileManager = None
+
+    def setConfig(self, config):
+        self.config = config
 
     def setProfileManager(self, profileManager):
         self.profileManager = profileManager
@@ -34,6 +38,7 @@ class SerialHelper:
             print("Bytes written: " + str(usb_cdc.data.write(serialOut)))
 
     def checkForCommands(self):
+        returnAction = None
         serialOut = self.read()
 
         if serialOut is not None:
@@ -49,10 +54,29 @@ class SerialHelper:
                 print(jsonData)
                 print("")
 
-                if "getProfiles" in jsonData:
+                if "getGlobalSettings" in jsonData:
+                    self.handleGetGlobalSettings()
+                elif "getProfiles" in jsonData:
                     self.handleGetProfiles()
+                elif "getActiveProfile" in jsonData:
+                    self.handleGetActiveProfile()
+                elif "setActiveProfile" in jsonData:
+                    returnAction = self.handleSetActiveProfile(jsonData)
                 elif "getProfile" in jsonData:
                     self.handleGetProfile(jsonData)
+
+        return returnAction
+
+    def handleGetGlobalSettings(self):
+        if self.config is not None:
+            self.write(
+                "getGlobalSettings",
+                {
+                    "stickBoundaries": self.config.stickBoundaries,
+                    "deadzoneSize": self.config.deadzoneSize,
+                    "kbModeOffsets": self.config.kbModeOffsets
+                }
+            )
 
     def handleGetProfiles(self):
         if self.profileManager is not None:
@@ -60,6 +84,35 @@ class SerialHelper:
 
             if profileNames:
                 self.write("getProfiles", profileNames)
+
+    def handleGetActiveProfile(self):
+        if self.profileManager is not None:
+            currentProfile = self.profileManager.getCurrentProfile()
+
+            if currentProfile:
+                self.write("getActiveProfile", currentProfile["name"])
+
+    def handleSetActiveProfile(self, jsonData):
+        success = False
+        returnValue = None
+
+        if jsonData and self.profileManager is not None:
+            newIndex = None
+
+            for index, profile in enumerate(self.config.profiles):
+                if profile and "name" in profile and profile["name"] == jsonData["setActiveProfile"]:
+                    newIndex = index
+                    break
+
+            if newIndex is not None:
+                profile = self.profileManager.getProfileByIndex(newIndex)
+                returnValue = {"profileChange": True}
+
+                if profile:
+                    success = True
+
+        self.write("setActiveProfile", success)
+        return returnValue
 
     def handleGetProfile(self, jsonData):
         if jsonData and self.profileManager is not None:
