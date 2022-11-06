@@ -64,6 +64,10 @@ class SerialHelper:
                     returnAction = self.handleSetActiveProfile(jsonData)
                 elif "getProfile" in jsonData:
                     self.handleGetProfile(jsonData)
+                elif "createNewProfile" in jsonData:
+                    self.handleCreateNewProfile(jsonData)
+                elif "deleteProfile" in jsonData:
+                    self.handleDeleteProfile(jsonData)
 
         return returnAction
 
@@ -121,3 +125,19 @@ class SerialHelper:
 
             if profile:
                 self.write("getProfile", profile)
+
+    def handleCreateNewProfile(self, jsonData):
+        if jsonData and self.profileManager is not None:
+            newProfileName = jsonData["createNewProfile"]
+
+            if newProfileName:
+                result = self.profileManager.createNewProfile(newProfileName)
+                self.write("createNewProfile", result)
+
+    def handleDeleteProfile(self, jsonData):
+        if jsonData and self.profileManager is not None:
+            profileName = jsonData["deleteProfile"]
+
+            if profileName:
+                result = self.profileManager.deleteProfile(profileName)
+                self.write("deleteProfile", result)

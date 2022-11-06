@@ -15,53 +15,54 @@ class Config:
             "y": 10
         }
 
-        self.profiles = [
-            {
-                "name": "1",
-                "keys": [
-                    "1",
-                    "2",
-                    "3",
-                    "4",
-                    "5",
-                    "q",
-                    "w",
-                    "e",
-                    "r",
-                    "y",
-                    "6",
-                    "7",
-                    "8",
-                    "d",
-                    "f",
-                    "9",
-                    "z",
-                    "x",
-                    "c",
-                    "v"
-                ],
-                "thumbButton": "space",
-                "joystickButton": "leftAlt",
-                "isKbModeEnabled": False,
-                "kbMode": {
-                    "up": "up",
-                    "down": "down",
-                    "left": "left",
-                    "right": "right"
-                },
-                "dpad": {
-                    "up": "w",
-                    "down": "s",
-                    "left": "a",
-                    "right": "d"
-                },
-                "rgb": {
-                    "red": 255,
-                    "green": 0,
-                    "blue": 0
-                }
+        self.profiles = [self.getDefaultProfileData("1")]
+
+    def getDefaultProfileData(self, name = ""):
+        return {
+            "name": name,
+            "keys": [
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "q",
+                "w",
+                "e",
+                "r",
+                "y",
+                "6",
+                "7",
+                "8",
+                "d",
+                "f",
+                "9",
+                "z",
+                "x",
+                "c",
+                "v"
+            ],
+            "thumbButton": "space",
+            "joystickButton": "leftAlt",
+            "isKbModeEnabled": False,
+            "kbMode": {
+                "up": "up",
+                "down": "down",
+                "left": "left",
+                "right": "right"
+            },
+            "dpad": {
+                "up": "w",
+                "down": "s",
+                "left": "a",
+                "right": "d"
+            },
+            "rgb": {
+                "red": 255,
+                "green": 0,
+                "blue": 0
             }
-        ]
+        }
 
     def loadFromFile(self):
         configFilePointer = None

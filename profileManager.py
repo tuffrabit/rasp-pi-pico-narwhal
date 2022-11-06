@@ -82,3 +82,32 @@ class ProfileManager:
                     names.append(profile["name"])
 
         return names
+
+    def createNewProfile(self, newProfileName):
+        success = False
+
+        if newProfileName and self.config:
+            newProfile = self.config.getDefaultProfileData(newProfileName)
+
+            if newProfile:
+                self.config.profiles.append(newProfile)
+                success = True
+
+        return success
+
+    def deleteProfile(self, profileName):
+        success = False
+
+        if profileName and self.config:
+            indexToRemove = None
+
+            for index, profile in enumerate(self.config.profiles):
+                if profile["name"] == profileName:
+                    indexToRemove = index
+                    break
+
+            if indexToRemove != None:
+                del self.config.profiles[indexToRemove]
+                success = True
+
+        return success
