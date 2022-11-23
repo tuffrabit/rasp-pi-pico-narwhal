@@ -111,3 +111,20 @@ class ProfileManager:
                 success = True
 
         return success
+
+    def renameProfile(self, newProfileName, oldProfileName):
+        success = False
+
+        if newProfileName and oldProfileName and self.config:
+            indexToRename = None
+
+            for index, profile in enumerate(self.config.profiles):
+                if profile["name"] == oldProfileName:
+                    indexToRename = index
+                    break
+
+            if indexToRename != None:
+                self.config.profiles[indexToRename]["name"] = newProfileName
+                success = True
+
+        return success
