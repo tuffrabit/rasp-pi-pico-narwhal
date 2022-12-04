@@ -70,6 +70,8 @@ class SerialHelper:
                     self.handleDeleteProfile(jsonData)
                 elif "renameProfile" in jsonData:
                     self.handleRenameProfile(jsonData)
+                elif "setProfileValue" in jsonData:
+                    returnAction = self.handleSetProfileValue(jsonData)
 
         return returnAction
 
@@ -152,3 +154,18 @@ class SerialHelper:
             if newProfileName and oldProfileName:
                 result = self.profileManager.renameProfile(newProfileName, oldProfileName)
                 self.write("renameProfile", result)
+
+    def handleSetProfileValue(self, jsonData):
+        returnValue = None
+
+        if jsonData and self.profileManager is not None:
+            profileName = jsonData["setProfileValue"]["profile"]
+            valueName = jsonData["setProfileValue"]["valueName"]
+            value = jsonData["setProfileValue"]["value"]
+
+            if profileName and valueName and value is not None:
+                result = self.profileManager.setProfileValue(profileName, valueName, value)
+                returnValue = {"profileChange": True}
+                self.write("setProfileValue", result)
+
+        return returnValue

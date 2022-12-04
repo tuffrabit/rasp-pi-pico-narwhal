@@ -194,27 +194,12 @@ reloadCurrentProfile = False
 if usb_cdc.data:
     usb_cdc.data.reset_input_buffer()
 
-inBytes = bytearray()
-
 while True:
     commandAction = serialHelper.checkForCommands()
 
     if commandAction is not None:
         if "profileChange" in commandAction and commandAction["profileChange"]:
             reloadCurrentProfile = True
-
-    #if usb_cdc.data and usb_cdc.data.in_waiting > 0:
-        #byte = usb_cdc.data.read(1)
-        #print("Serial In Byte: " + str(byte))
-
-        #if byte == b'\n':
-        #    print("Serial In: " + inBytes.decode("utf-8"))
-        #    inBytes = bytearray()
-        #else:
-        #    inBytes += byte
-        #
-        #    if len(inBytes) == 129:
-        #        inBytes = inBytes[128] + inBytes[0:127]
 
     #if time.monotonic() - currentTime > 1.0:
     #    print("free memory: " + str(gc.mem_alloc()))

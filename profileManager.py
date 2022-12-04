@@ -128,3 +128,76 @@ class ProfileManager:
                 success = True
 
         return success
+
+    def setProfileValue(self, profileName, valueName, value):
+        success = False
+
+        if profileName and valueName and value is not None and self.config:
+            profileToUpdate = None
+            profileIndexToUpdate = None
+
+            for index, profile in enumerate(self.config.profiles):
+                if profile["name"] == profileName:
+                    profileToUpdate = profile
+                    profileIndexToUpdate = index
+                    break
+
+            if profileToUpdate and profileIndexToUpdate is not None:
+                if valueName.startswith("key"):
+                    keyIndex = valueName[3::]
+
+                    if keyIndex.isdigit():
+                        keyIndex = int(keyIndex)
+
+                        if keyIndex > -1 and keyIndex < 20:
+                            profileToUpdate["keys"][keyIndex] = value
+                            success = True
+                elif valueName == "thumbButton":
+                    profileToUpdate["thumbButton"] = value
+                    success = True
+                elif valueName == "joystickButton":
+                    profileToUpdate["joystickButton"] = value
+                    success = True
+                elif valueName == "isKbModeEnabled":
+                    profileToUpdate["isKbModeEnabled"] = value
+                    success = True
+                elif valueName.startswith("kb"):
+                    kbName = valueName[2::]
+
+                    if kbName == "up":
+                        profileToUpdate["kbMode"]["up"] = value
+                        success = True
+                    elif kbName == "down":
+                        profileToUpdate["kbMode"]["down"] = value
+                        success = True
+                    elif kbName == "left":
+                        profileToUpdate["kbMode"]["left"] = value
+                        success = True
+                    elif kbName == "right":
+                        profileToUpdate["kbMode"]["right"] = value
+                        success = True
+                elif valueName.startswith("dpad"):
+                    dpadName = valueName[4::]
+
+                    if dpadName == "up":
+                        profileToUpdate["dpad"]["up"] = value
+                        success = True
+                    elif dpadName == "down":
+                        profileToUpdate["dpad"]["down"] = value
+                        success = True
+                    elif dpadName == "left":
+                        profileToUpdate["dpad"]["left"] = value
+                        success = True
+                    elif dpadName == "right":
+                        profileToUpdate["dpad"]["right"] = value
+                        success = True
+                elif valueName == "rgb" and len(value) == 6:
+                    rgb = tuple(int(value[i:i+2], 16) for i in (0, 2, 4))
+
+                    if rgb:
+                        profileToUpdate["rgb"]["red"] = rgb[0]
+                        profileToUpdate["rgb"]["green"] = rgb[1]
+                        profileToUpdate["rgb"]["blue"] = rgb[2]
+                        success = True
+
+        return success
