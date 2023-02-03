@@ -1,4 +1,5 @@
 import  json
+import storage
 
 class Config:
     def __init__(self):
@@ -88,3 +89,35 @@ class Config:
 
                 if "profiles" in configData:
                     self.profiles = configData["profiles"]
+
+    def saveToFile(self):
+        configData = {
+            "stickBoundaries": self.stickBoundaries,
+            "deadzoneSize": self.deadzoneSize,
+            "kbModeOffsets": self.kbModeOffsets,
+            "profiles": self.profiles
+        }
+
+        configJson = json.dumps(configData)
+        written = 0
+        storage.remount("/", False)
+
+        with open('config.json', 'w') as f:
+            written = f.write(configJson)
+
+        storage.remount("/", True)
+
+        if written > 0:
+            return True
+        else:
+            return False
+
+    def getDataJson(self):
+        configData = {
+            "stickBoundaries": self.stickBoundaries,
+            "deadzoneSize": self.deadzoneSize,
+            "kbModeOffsets": self.kbModeOffsets,
+            "profiles": self.profiles
+        }
+
+        return json.dumps(configData)

@@ -72,6 +72,12 @@ class SerialHelper:
                     self.handleRenameProfile(jsonData)
                 elif "setProfileValue" in jsonData:
                     returnAction = self.handleSetProfileValue(jsonData)
+                elif "ping" in jsonData:
+                    self.handlePing()
+                elif "save" in jsonData:
+                    self.handleSave()
+                elif "getSaveData" in jsonData:
+                    self.handleGetSaveData()
 
         return returnAction
 
@@ -169,3 +175,18 @@ class SerialHelper:
                 self.write("setProfileValue", result)
 
         return returnValue
+
+    def handlePing(self):
+        self.write("ping", True)
+
+    def handleSave(self):
+        pass
+        '''if self.config:
+            if self.config.saveToFile():
+                self.write("save", True)
+            else:
+                self.write("save", False)'''
+
+    def handleGetSaveData(self):
+        if self.config:
+            self.write("getSaveData", self.config.getDataJson())

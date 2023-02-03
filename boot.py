@@ -1,5 +1,6 @@
 import usb_hid
 import usb_cdc
+import storage
 
 usb_cdc.enable(console=True, data=True)
 
