@@ -89,6 +89,7 @@ profileHelper.setKeyConverter(keyConverter)
 currentProfile = profileManager.getInitialProfile()
 serialHelper.setConfig(config)
 serialHelper.setProfileManager(profileManager)
+serialHelper.setStick(stick)
 
 # Setup
 kbMode.setXStartOffset(config.kbModeOffsets['x'])
@@ -123,6 +124,10 @@ stickDeadzone.setDeadzoneBuffer(config.deadzoneSize)
 stickDeadzone.initDeadzone(ax, ay)
 deadzone = stickDeadzone.getDeadzone()
 stick.setDeadzone(stickDeadzone)
+stick.setXHigh(config.stickBoundaries["highX"])
+stick.setXLow(config.stickBoundaries["lowX"])
+stick.setYHigh(config.stickBoundaries["highY"])
+stick.setYLow(config.stickBoundaries["lowY"])
 led.setLedState(False)
 led.setRGBLedColor(0, 0, 255)
 

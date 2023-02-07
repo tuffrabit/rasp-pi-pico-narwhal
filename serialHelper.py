@@ -6,12 +6,16 @@ class SerialHelper:
         self.inBytes = bytearray()
         self.config = None
         self.profileManager = None
+        self.stick = None
 
     def setConfig(self, config):
         self.config = config
 
     def setProfileManager(self, profileManager):
         self.profileManager = profileManager
+
+    def setStick(self, stick):
+        self.stick = stick
 
     def read(self):
         out = None
@@ -78,6 +82,14 @@ class SerialHelper:
                     self.handleSave()
                 elif "getSaveData" in jsonData:
                     self.handleGetSaveData()
+                elif "setStickXHigh" in jsonData:
+                    self.handleSetStickXHigh(jsonData)
+                elif "setStickXLow" in jsonData:
+                    self.handleSetStickXLow(jsonData)
+                elif "setStickYHigh" in jsonData:
+                    self.handleSetStickYHigh(jsonData)
+                elif "setStickYLow" in jsonData:
+                    self.handleSetStickYLow(jsonData)
 
         return returnAction
 
@@ -190,3 +202,23 @@ class SerialHelper:
     def handleGetSaveData(self):
         if self.config:
             self.write("getSaveData", self.config.getDataJson())
+
+    def handleSetStickXHigh(self, jsonData):
+        if jsonData and self.stick is not None:
+            result = self.stick.setXHigh(jsonData["setStickXHigh"])
+            self.write("setStickXHigh", result)
+
+    def handleSetStickXLow(self, jsonData):
+        if jsonData and self.stick is not None:
+            result = self.stick.setXLow(jsonData["setStickXLow"])
+            self.write("setStickXLow", result)
+
+    def handleSetStickYHigh(self, jsonData):
+        if jsonData and self.stick is not None:
+            result = self.stick.setYHigh(jsonData["setStickYHigh"])
+            self.write("setStickYHigh", result)
+
+    def handleSetStickYLow(self, jsonData):
+        if jsonData and self.stick is not None:
+            result = self.stick.setYLow(jsonData["setStickYLow"])
+            self.write("setStickYLow", result)

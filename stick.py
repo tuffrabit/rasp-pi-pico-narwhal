@@ -6,8 +6,31 @@ class Stick:
         self.yHigh = 52535
         self.yLow = 15000
 
+    def getStickValue(self, value):
+        try:
+            value = int(value)
+        except:
+            value = None
+
+        if value is not None and (value < 1 or value > 65535):
+            value = None
+
+        return value
+
     def setDeadzone(self, deadzone):
         self.deadzone = deadzone
+
+    def setXHigh(self, xHigh):
+        self.xHigh = self.getStickValue(xHigh)
+
+    def setXLow(self, xLow):
+        self.xLow = self.getStickValue(xLow)
+
+    def setYHigh(self, yHigh):
+        self.yHigh = self.getStickValue(yHigh)
+
+    def setYLow(self, yLow):
+        self.yLow = self.getStickValue(yLow)
 
     def doStickCalculations(self, analogX, analogY, constrainDeadzone = False):
         xStick = 65535 - analogX.value
