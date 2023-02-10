@@ -65,6 +65,29 @@ class Config:
             }
         }
 
+    def getStickValue(self, value):
+        try:
+            value = int(value)
+        except:
+            value = None
+
+        if value is not None and (value < 1 or value > 65535):
+            value = None
+
+        return value
+
+    def setDeadzoneSize(self, value):
+        self.deadzoneSize = self.getStickValue(value)
+        return self.deadzoneSize
+
+    def setKbModeXOffset(self, value):
+        self.kbModeOffsets["x"] = self.getStickValue(value)
+        return self.kbModeOffsets["x"]
+
+    def setKbModeYOffset(self, value):
+        self.kbModeOffsets["y"] = self.getStickValue(value)
+        return self.kbModeOffsets["y"]
+
     def loadFromFile(self):
         configFilePointer = None
 

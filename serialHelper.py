@@ -7,6 +7,7 @@ class SerialHelper:
         self.config = None
         self.profileManager = None
         self.stick = None
+        self.kbMode = None
 
     def setConfig(self, config):
         self.config = config
@@ -16,6 +17,9 @@ class SerialHelper:
 
     def setStick(self, stick):
         self.stick = stick
+
+    def setKbMode(self, kbMode):
+        self.kbMode = kbMode
 
     def read(self):
         out = None
@@ -90,6 +94,12 @@ class SerialHelper:
                     self.handleSetStickYHigh(jsonData)
                 elif "setStickYLow" in jsonData:
                     self.handleSetStickYLow(jsonData)
+                elif "setDeadzone" in jsonData:
+                    self.handleSetDeadzone(jsonData)
+                elif "setKbModeXStartOffset" in jsonData:
+                    self.handleSetKbModeXStartOffset(jsonData)
+                elif "setKbModeYStartOffset" in jsonData:
+                    self.handleSetKbModeYStartOffset(jsonData)
 
         return returnAction
 
@@ -222,3 +232,20 @@ class SerialHelper:
         if jsonData and self.stick is not None:
             result = self.stick.setYLow(jsonData["setStickYLow"])
             self.write("setStickYLow", result)
+
+    def handleSetDeadzone(self, jsonData):
+        if jsonData and self.config is not None:
+            self.config.setDeadzoneSize(jsonData["setDeadzone"])
+            self.write("setDeadzone", True)
+
+    def handleSetKbModeXStartOffset(self, jsonData):
+        if jsonData and self.config is not None and self.kbMode is not None:
+            result = self.config.setKbModeXOffset(jsonData["setKbModeXStartOffset"])
+            self.kbMode.setXStartOffset(result)
+            self.write("setKbModeXStartOffset", True)
+
+    def handleSetKbModeYStartOffset(self, jsonData):
+        if jsonData and self.config is not None and self.kbMode is not None:
+            result = self.config.setKbModeYOffset(jsonData["setKbModeYStartOffset"])
+            self.kbMode.setYStartOffset(result)
+            self.write("setKbModeYStartOffset", True)

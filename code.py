@@ -90,6 +90,7 @@ currentProfile = profileManager.getInitialProfile()
 serialHelper.setConfig(config)
 serialHelper.setProfileManager(profileManager)
 serialHelper.setStick(stick)
+serialHelper.setKbMode(kbMode)
 
 # Setup
 kbMode.setXStartOffset(config.kbModeOffsets['x'])
