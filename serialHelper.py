@@ -202,12 +202,11 @@ class SerialHelper:
         self.write("ping", True)
 
     def handleSave(self):
-        pass
-        '''if self.config:
+        if self.config:
             if self.config.saveToFile():
                 self.write("save", True)
             else:
-                self.write("save", False)'''
+                self.write("save", False)
 
     def handleGetSaveData(self):
         if self.config:

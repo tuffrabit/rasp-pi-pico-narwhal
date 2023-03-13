@@ -1,6 +1,18 @@
 import usb_hid
 import usb_cdc
+import board
+import digitalio
 import storage
+
+# For Pi Pico
+thumbButton = digitalio.DigitalInOut(board.GP10)
+thumbButton.direction = digitalio.Direction.INPUT
+thumbButton.pull = digitalio.Pull.UP
+
+# If the switch pin is connected to ground the host OS can write to the drive, otherwise CircuitPython can
+if thumbButton.value:
+    storage.disable_usb_drive()
+    storage.remount("/", False)
 
 usb_cdc.enable(console=True, data=True)
 

@@ -123,12 +123,9 @@ class Config:
 
         configJson = json.dumps(configData)
         written = 0
-        storage.remount("/", False)
 
         with open('config.json', 'w') as f:
             written = f.write(configJson)
-
-        storage.remount("/", True)
 
         if written > 0:
             return True
