@@ -62,6 +62,6 @@ class StickDeadzone:
 
     def initBoundary(self):
         self.deadzone = self.deadzone + self.deadzoneBuffer
-        self.edgeAdjust = self.deadzone + 250
+        self.edgeAdjust = self.deadzone + 7000
         self.upperBoundary = 32768 + self.deadzone
         self.lowerBoundary = 32768 - self.deadzone
