@@ -33,7 +33,7 @@ class Stick:
         self.yLow = self.getStickValue(yLow)
 
     def doStickCalculations(self, analogX, analogY, constrainDeadzone = False):
-        xStick = 65535 - analogX.value
+        xStick = analogX.value
         yStick = analogY.value
 
         if constrainDeadzone:

@@ -94,6 +94,10 @@ class SerialHelper:
                     self.handleSetStickYHigh(jsonData)
                 elif "setStickYLow" in jsonData:
                     self.handleSetStickYLow(jsonData)
+                elif "setStickXOrientation" in jsonData:
+                    self.handleSetStickXOrientation(jsonData)
+                elif "setStickYOrientation" in jsonData:
+                    self.handleSetStickYOrientation(jsonData)
                 elif "setDeadzone" in jsonData:
                     self.handleSetDeadzone(jsonData)
                 elif "setKbModeXStartOffset" in jsonData:
@@ -110,7 +114,8 @@ class SerialHelper:
                 {
                     "stickBoundaries": self.config.stickBoundaries,
                     "deadzoneSize": self.config.deadzoneSize,
-                    "kbModeOffsets": self.config.kbModeOffsets
+                    "kbModeOffsets": self.config.kbModeOffsets,
+                    "stickAxesOrientation": self.config.stickAxesOrientation
                 }
             )
 
@@ -231,6 +236,16 @@ class SerialHelper:
         if jsonData and self.stick is not None:
             result = self.stick.setYLow(jsonData["setStickYLow"])
             self.write("setStickYLow", result)
+
+    def handleSetStickXOrientation(self, jsonData):
+        if jsonData and self.config is not None:
+            self.config.setStickXOrientation(jsonData["setStickXOrientation"])
+            self.write("setStickXOrientation", True)
+
+    def handleSetStickYOrientation(self, jsonData):
+        if jsonData and self.config is not None:
+            self.config.setStickYOrientation(jsonData["setStickYOrientation"])
+            self.write("setStickYOrientation", True)
 
     def handleSetDeadzone(self, jsonData):
         if jsonData and self.config is not None:

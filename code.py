@@ -200,62 +200,94 @@ reloadCurrentProfile = False
 if usb_cdc.data:
     usb_cdc.data.reset_input_buffer()
 
+lastUpdateTime = time.monotonic()
+
 while True:
-    commandAction = serialHelper.checkForCommands()
+    currentTime = time.monotonic()
+    doLoop = True
 
-    if commandAction is not None:
-        if "profileChange" in commandAction and commandAction["profileChange"]:
-            reloadCurrentProfile = True
+    # 0.00833 milliseconds = 120hz
+    #if (currentTime - lastUpdateTime) >= 0.00833:
+    # 0.002 milliseconds = 500hz
+    #if (currentTime - lastUpdateTime) >= 0.002:
+    #    lastUpdateTime = currentTime
+    #    doLoop = True
 
-    #if time.monotonic() - currentTime > 1.0:
-    #    print("free memory: " + str(gc.mem_alloc()))
-    #    print("iterations: " + str(iterations))
-    #    print("")
-    #    iterations = 0
-    #    currentTime = time.monotonic()
+    if doLoop:
+        commandAction = serialHelper.checkForCommands()
 
-    goToNextProfile, goToPreviousProfile = handleAction("stickButton", not joySelectButton.value, stickButton)
-    goToNextProfile, goToPreviousProfile = handleAction("thumbButton", not thumbButton.value, thumbAction)
-    stickValues = stick.doStickCalculations(ax, ay, True)
+        if commandAction is not None:
+            if "profileChange" in commandAction and commandAction["profileChange"]:
+                reloadCurrentProfile = True
 
-    if isKeyboardMode:
-        up, down, left, right = kbMode.calculateStickInput(stickValues)
-        goToNextProfile, goToPreviousProfile = handleAction("kbUp", up, keyboardModeStickUpKey)
-        goToNextProfile, goToPreviousProfile = handleAction("kbDown", down, keyboardModeStickDownKey)
-        goToNextProfile, goToPreviousProfile = handleAction("kbLeft", left, keyboardModeStickLeftKey)
-        goToNextProfile, goToPreviousProfile = handleAction("kbRight", right, keyboardModeStickRightKey)
-    else:
-        gp.move_joysticks(x=stickValues[0], y=stickValues[1])
+        #if time.monotonic() - currentTime > 1.0:
+        #    print("free memory: " + str(gc.mem_alloc()))
+        #    print("iterations: " + str(iterations))
+        #    print("")
+        #    iterations = 0
+        #    currentTime = time.monotonic()
 
-    keyEvent = keyMatrix.events.get()
+        goToNextProfile, goToPreviousProfile = handleAction("stickButton", not joySelectButton.value, stickButton)
+        goToNextProfile, goToPreviousProfile = handleAction("thumbButton", not thumbButton.value, thumbAction)
+        stickValues = stick.doStickCalculations(ax, ay, True)
+        stickAxesOrientation = config.stickAxesOrientation
+        stickXAxisOrientation = stickAxesOrientation["x"]
+        stickYAxisOrientation = stickAxesOrientation["y"]
+        tempXValue = stickValues[0]
+        tempYValue = stickValues[1]
 
-    if keyEvent:
-        keyNumber = keyEvent.key_number
-        keyAction = keys[keyNumber]
-        goToNextProfile, goToPreviousProfile = handleAction(str(keyNumber), keyEvent.pressed, keyAction)
+        if stickXAxisOrientation is not None:
+            if stickXAxisOrientation["axis"] == 1:
+                stickValues[0] = tempYValue
 
-    if goToNextProfile or goToPreviousProfile:
-        profile = None
+            if stickXAxisOrientation["reverse"]:
+                stickValues[0] = stickValues[0] * -1
 
-        if goToNextProfile:
-            profile = profileManager.getNextProfile()
-        elif goToPreviousProfile:
-            profile = profileManager.getPreviousProfile()
+        if stickYAxisOrientation is not None:
+            if stickYAxisOrientation["axis"] == 0:
+                stickValues[1] = tempXValue
 
-        goToNextProfile = False
-        goToPreviousProfile = False
+            if stickYAxisOrientation["reverse"]:
+                stickValues[1] = stickValues[1] * -1
 
-        if profile != None:
-            currentProfile = profile
+        if isKeyboardMode:
+            up, down, left, right = kbMode.calculateStickInput(stickValues)
+            goToNextProfile, goToPreviousProfile = handleAction("kbUp", up, keyboardModeStickUpKey)
+            goToNextProfile, goToPreviousProfile = handleAction("kbDown", down, keyboardModeStickDownKey)
+            goToNextProfile, goToPreviousProfile = handleAction("kbLeft", left, keyboardModeStickLeftKey)
+            goToNextProfile, goToPreviousProfile = handleAction("kbRight", right, keyboardModeStickRightKey)
+        else:
+            gp.move_joysticks(x=stickValues[0], y=stickValues[1])
+
+        keyEvent = keyMatrix.events.get()
+
+        if keyEvent:
+            keyNumber = keyEvent.key_number
+            keyAction = keys[keyNumber]
+            goToNextProfile, goToPreviousProfile = handleAction(str(keyNumber), keyEvent.pressed, keyAction)
+
+        if goToNextProfile or goToPreviousProfile:
+            profile = None
+
+            if goToNextProfile:
+                profile = profileManager.getNextProfile()
+            elif goToPreviousProfile:
+                profile = profileManager.getPreviousProfile()
+
+            goToNextProfile = False
+            goToPreviousProfile = False
+
+            if profile != None:
+                currentProfile = profile
+                setRunValuesFromCurrentProfile()
+                gp.release_all_buttons()
+                keyboard.release_all()
+
+        if reloadCurrentProfile:
+            reloadCurrentProfile = False
+            currentProfile = profileManager.getCurrentProfile()
             setRunValuesFromCurrentProfile()
             gp.release_all_buttons()
             keyboard.release_all()
 
-    if reloadCurrentProfile:
-        reloadCurrentProfile = False
-        currentProfile = profileManager.getCurrentProfile()
-        setRunValuesFromCurrentProfile()
-        gp.release_all_buttons()
-        keyboard.release_all()
-
-    #iterations = iterations + 1
+        #iterations = iterations + 1

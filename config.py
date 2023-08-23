@@ -10,6 +10,17 @@ class Config:
             "highY": 52535
         }
 
+        self.stickAxesOrientation = {
+            "x": {
+                "axis": 0,
+                "reverse": False
+            },
+            "y": {
+                "axis": 1,
+                "reverse": True
+            }
+        }
+
         self.deadzoneSize = 1000
         self.kbModeOffsets = {
             "x": 10,
@@ -76,6 +87,14 @@ class Config:
 
         return value
 
+    def setStickXOrientation(self, value):
+        self.stickAxesOrientation["x"]["axis"] = int(value["axis"])
+        self.stickAxesOrientation["x"]["reverse"] = bool(value["reverse"])
+
+    def setStickYOrientation(self, value):
+        self.stickAxesOrientation["y"]["axis"] = int(value["axis"])
+        self.stickAxesOrientation["y"]["reverse"] = bool(value["reverse"])
+
     def setDeadzoneSize(self, value):
         self.deadzoneSize = self.getStickValue(value)
         return self.deadzoneSize
@@ -104,6 +123,9 @@ class Config:
                 if "stickBoundaries" in configData:
                     self.stickBoundaries = configData["stickBoundaries"]
 
+                if "stickAxesOrientation" in configData:
+                    self.stickAxesOrientation = configData["stickAxesOrientation"]
+
                 if "deadzoneSize" in configData:
                     self.deadzoneSize = configData["deadzoneSize"]
 
@@ -116,6 +138,7 @@ class Config:
     def saveToFile(self):
         configData = {
             "stickBoundaries": self.stickBoundaries,
+            "stickAxesOrientation": self.stickAxesOrientation,
             "deadzoneSize": self.deadzoneSize,
             "kbModeOffsets": self.kbModeOffsets,
             "profiles": self.profiles
@@ -135,6 +158,7 @@ class Config:
     def getDataJson(self):
         configData = {
             "stickBoundaries": self.stickBoundaries,
+            "stickAxesOrientation": self.stickAxesOrientation,
             "deadzoneSize": self.deadzoneSize,
             "kbModeOffsets": self.kbModeOffsets,
             "profiles": self.profiles
