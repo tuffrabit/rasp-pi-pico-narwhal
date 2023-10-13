@@ -77,7 +77,6 @@ class StickDeadzone:
             biggestDiff = lowDiff
 
         self.deadzone = biggestDiff
-        print(f'{biggestDiff}')
         self.initBoundary()
 
     def initBoundary(self):
