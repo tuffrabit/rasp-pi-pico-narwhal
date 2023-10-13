@@ -1,3 +1,5 @@
+import math
+
 class Stick:
     def __init__(self):
         self.deadzone = None
@@ -5,6 +7,7 @@ class Stick:
         self.xLow = 15000
         self.yHigh = 52535
         self.yLow = 15000
+        self.mappedDeadzone = 0
 
     def getStickValue(self, value):
         try:
@@ -19,6 +22,13 @@ class Stick:
 
     def setDeadzone(self, deadzone):
         self.deadzone = deadzone
+        self.mappedDeadzone = self.rangeMap(deadzone.getDeadzone(), 0, 32768, 0.0, 1.0)
+
+    def magnitude(self, x, y):
+        return math.sqrt(x * x + y * y)
+
+    def normalize(self, magnitude, x, y):
+        return [x / magnitude, y / magnitude]
 
     def setXHigh(self, xHigh):
         self.xHigh = self.getStickValue(xHigh)
@@ -37,31 +47,23 @@ class Stick:
         yStick = analogY.value
 
         if constrainDeadzone:
-            deadzone = self.deadzone.getDeadzone()
+            x = self.constrain(self.rangeMap(xStick, self.xLow, self.xHigh, -1.0, 1.0), -1.0, 1.0)
+            y = self.constrain(self.rangeMap(yStick, self.yLow, self.yHigh, -1.0, 1.0), -1.0, 1.0)
+            magnitude = self.magnitude(x, y)
 
-            if self.isInsideDeadzone(xStick):
+            if magnitude > self.mappedDeadzone:
+                x = self.constrain(self.rangeMap(xStick, self.xLow, self.xHigh, -1.0, 1.0), -1.0, 1.0)
+                y = self.constrain(self.rangeMap(yStick, self.yLow, self.yHigh, -1.0, 1.0), -1.0, 1.0)
+
+                factor = (magnitude - self.mappedDeadzone) / (1 - self.mappedDeadzone)
+                rawInputs = self.normalize(magnitude, x, y)
+                mappedX = self.rangeMap(rawInputs[0] * factor, -1.0, 1.0, -127, 127)
+                mappedY = self.rangeMap(rawInputs[1] * factor, -1.0, 1.0, -127, 127)
+                xStick = int(self.constrain(mappedX, -127, 127))
+                yStick = int(self.constrain(mappedY, -127, 127))
+            else:
                 xStick = 0
-            else:
-                if xStick > 32768:
-                    xMapped = self.rangeMap(xStick - deadzone, 32769, self.xHigh - deadzone, 1, 127)
-                    xStick = self.constrain(xMapped, 1, 127)
-                elif xStick < 32768:
-                    xMapped = self.rangeMap(xStick + deadzone, 32769, self.xLow + deadzone, -1, -127)
-                    xStick = self.constrain(xMapped, -127, -1)
-                else:
-                    xStick = 0
-
-            if self.isInsideDeadzone(yStick):
                 yStick = 0
-            else:
-                if yStick > 32768:
-                    yMapped = self.rangeMap(yStick - deadzone, 32769, self.yHigh - deadzone, 1, 127)
-                    yStick = self.constrain(yMapped, 1, 127)
-                elif yStick < 32768:
-                    yMapped = self.rangeMap(yStick + deadzone, 32769, self.yLow + deadzone, -1, -127)
-                    yStick = self.constrain(yMapped, -127, -1)
-                else:
-                    yStick = 0
 
         return [xStick, yStick]
 
@@ -83,4 +85,4 @@ class Stick:
         return x
 
     def rangeMap(self, x, inMin, inMax, outMin, outMax):
-        return (x - inMin) * (outMax - outMin) // (inMax - inMin) + outMin
+        return (x - inMin) * (outMax - outMin) / (inMax - inMin) + outMin

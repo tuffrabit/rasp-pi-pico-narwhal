@@ -23,9 +23,19 @@ class StickDeadzone:
     def setDeadzoneBuffer(self, deadzoneBuffer):
         self.deadzoneBuffer = deadzoneBuffer
 
+    def diff(self, x, y):
+        if x > y:
+            return x - y
+        elif x < y:
+            return y - x
+
     def initDeadzone(self, analogX, analogY):
         startTime = time.monotonic()
-        highValue = 0
+        biggestDiff = 0
+        lowestX = 65535
+        highestX = 0
+        lowestY = 65535
+        highestY = 0
 
         # loop for 5 seconds
         while True:
@@ -37,27 +47,37 @@ class StickDeadzone:
             #65535 is full range
             xValue = analogX.value
             yValue = analogY.value
-            diffX = 0
-            diffY = 0
 
-            if xValue < 32768:
-                diffX = 32768 - xValue
+            if xValue > highestX:
+                highestX = xValue
 
-            if xValue > 32768:
-                diffX = xValue - 32768
+            if xValue < lowestX:
+                lowestX = xValue
 
-            if yValue < 32768:
-                diffY = 32768 - yValue
+            if yValue > highestY:
+                highestY = yValue
 
-            if yValue > 32768:
-                diffY = yValue - 32768
+            if yValue < lowestY:
+                lowestY = yValue
 
-            if diffX >= diffY:
-                highValue = diffX
-            else:
-                highValue = diffY
+        lowest = lowestX
+        highest = highestX
 
-        self.deadzone = highValue
+        if lowestY < lowest:
+            lowest = lowestY
+
+        if highestY > highest:
+            highest = highestY
+
+        lowDiff = self.diff(32768, lowest)
+        highDiff = self.diff(32768, highest)
+        biggestDiff = highDiff
+
+        if lowDiff > biggestDiff:
+            biggestDiff = lowDiff
+
+        self.deadzone = biggestDiff
+        print(f'{biggestDiff}')
         self.initBoundary()
 
     def initBoundary(self):
