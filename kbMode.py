@@ -1,7 +1,10 @@
+import stickCommon as sc
+
 class KbMode:
     def __init__(self):
         self.xStartOffset = None
         self.yStartOffset = None
+        self.yConeEnd = None
         self.keyboard = None
 
     def setXStartOffset(self, value):
@@ -9,6 +12,9 @@ class KbMode:
 
     def setYStartOffset(self, value):
         self.yStartOffset = value
+
+    def setYConeEnd(self, value):
+        self.yConeEnd = value
 
     def setKeyboard(self, keyboard):
         self.keyboard = keyboard
@@ -20,16 +26,23 @@ class KbMode:
         right = False
         xStick = stickValues[0]
         yStick = stickValues[1]
+        xStickAbs = abs(xStick)
+        yStickAbs = abs(yStick)
 
-        if xStick > self.xStartOffset:
-            right = True
-        elif xStick < (self.xStartOffset * -1):
-            left = True
+        if xStickAbs > self.xStartOffset:
+            extraOffset = sc.rangeMap(yStickAbs, 0, 127, self.xStartOffset, self.yConeEnd)
 
-        if yStick > self.yStartOffset:
-            down = True
-        elif yStick < (self.yStartOffset * -1):
-            up = True
+            if xStickAbs > extraOffset:
+                if xStick > 0:
+                    right = True
+                elif xStick < 0:
+                    left = True
+
+        if yStickAbs > self.yStartOffset:
+            if yStick > 0:
+                down = True
+            elif yStick < 0:
+                up = True
 
         return up, down, left, right
 

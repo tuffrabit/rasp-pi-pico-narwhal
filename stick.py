@@ -1,3 +1,4 @@
+import stickCommon as sc
 import math
 
 class Stick:
@@ -8,81 +9,43 @@ class Stick:
         self.yHigh = 52535
         self.yLow = 15000
         self.mappedDeadzone = 0
-
-    def getStickValue(self, value):
-        try:
-            value = int(value)
-        except:
-            value = None
-
-        if value is not None and (value < 1 or value > 65535):
-            value = None
-
-        return value
+        self.deadzoneMagnitude = 0
 
     def setDeadzone(self, deadzone):
         self.deadzone = deadzone
-        self.mappedDeadzone = self.rangeMap(deadzone.getDeadzone(), 0, 32768, 0.0, 1.0)
-
-    def magnitude(self, x, y):
-        return math.sqrt(x * x + y * y)
-
-    def normalize(self, magnitude, x, y):
-        return [x / magnitude, y / magnitude]
+        self.mappedDeadzone = sc.rangeMap(deadzone.getDeadzone(), 0, 32768, 0.0, 1.0)
+        self.deadzoneMagnitude = deadzone.deadzoneMagnitude
 
     def setXHigh(self, xHigh):
-        self.xHigh = self.getStickValue(xHigh)
+        self.xHigh = sc.getStickValue(xHigh)
 
     def setXLow(self, xLow):
-        self.xLow = self.getStickValue(xLow)
+        self.xLow = sc.getStickValue(xLow)
 
     def setYHigh(self, yHigh):
-        self.yHigh = self.getStickValue(yHigh)
+        self.yHigh = sc.getStickValue(yHigh)
 
     def setYLow(self, yLow):
-        self.yLow = self.getStickValue(yLow)
+        self.yLow = sc.getStickValue(yLow)
 
     def doStickCalculations(self, analogX, analogY, constrainDeadzone = False):
         xStick = analogX.value
         yStick = analogY.value
 
         if constrainDeadzone:
-            x = self.constrain(self.rangeMap(xStick, self.xLow, self.xHigh, -1.0, 1.0), -1.0, 1.0)
-            y = self.constrain(self.rangeMap(yStick, self.yLow, self.yHigh, -1.0, 1.0), -1.0, 1.0)
-            magnitude = self.magnitude(x, y)
+            x = sc.constrain(sc.rangeMap(xStick, self.xLow, self.xHigh, -1.0, 1.0), -1.0, 1.0)
+            y = sc.constrain(sc.rangeMap(yStick, self.yLow, self.yHigh, -1.0, 1.0), -1.0, 1.0)
+            magnitude = sc.magnitude(x, y)
 
-            if magnitude > self.mappedDeadzone:
-                x = self.constrain(self.rangeMap(xStick, self.xLow, self.xHigh, -1.0, 1.0), -1.0, 1.0)
-                y = self.constrain(self.rangeMap(yStick, self.yLow, self.yHigh, -1.0, 1.0), -1.0, 1.0)
-
-                factor = (magnitude - self.mappedDeadzone) / (1 - self.mappedDeadzone)
-                rawInputs = self.normalize(magnitude, x, y)
-                mappedX = self.rangeMap(rawInputs[0] * factor, -1.0, 1.0, -127, 127)
-                mappedY = self.rangeMap(rawInputs[1] * factor, -1.0, 1.0, -127, 127)
-                xStick = int(self.constrain(mappedX, -127, 127))
-                yStick = int(self.constrain(mappedY, -127, 127))
+            if magnitude > self.deadzoneMagnitude:
+                factor = (magnitude - self.deadzoneMagnitude) / (1 - self.deadzoneMagnitude)
+                rawInputs = sc.normalize(magnitude, x, y)
+                mappedX = sc.rangeMap(rawInputs[0] * factor, -1.0, 1.0, -127, 127)
+                mappedY = sc.rangeMap(rawInputs[1] * factor, -1.0, 1.0, -127, 127)
+                xStick = int(sc.constrain(mappedX, -127, 127))
+                yStick = int(sc.constrain(mappedY, -127, 127))
             else:
                 xStick = 0
                 yStick = 0
 
         return [xStick, yStick]
-
-    def isInsideDeadzone(self, rawStickValue):
-        returnValue = False
-
-        if ((rawStickValue > 32768 and rawStickValue <= self.deadzone.getUpperBoundary()) or
-        (rawStickValue < 32768 and rawStickValue >= self.deadzone.getLowerBoundary())):
-            returnValue = True
-
-        return returnValue
-
-    def constrain(self, x, a, b):
-        if x < a:
-            x = a
-        elif x > b:
-            x = b
-
-        return x
-
-    def rangeMap(self, x, inMin, inMax, outMin, outMax):
-        return (x - inMin) * (outMax - outMin) / (inMax - inMin) + outMin

@@ -1,3 +1,4 @@
+import stickCommon as sc
 import  json
 import storage
 
@@ -21,11 +22,12 @@ class Config:
             }
         }
 
-        self.deadzoneSize = 1000
+        self.deadzoneSize = 3000
         self.kbModeOffsets = {
             "x": 10,
             "y": 10
         }
+        self.kbModeYConeEnd = 90
 
         self.profiles = [self.getDefaultProfileData("1")]
 
@@ -76,17 +78,6 @@ class Config:
             }
         }
 
-    def getStickValue(self, value):
-        try:
-            value = int(value)
-        except:
-            value = None
-
-        if value is not None and (value < 1 or value > 65535):
-            value = None
-
-        return value
-
     def setStickXOrientation(self, value):
         self.stickAxesOrientation["x"]["axis"] = int(value["axis"])
         self.stickAxesOrientation["x"]["reverse"] = bool(value["reverse"])
@@ -96,16 +87,20 @@ class Config:
         self.stickAxesOrientation["y"]["reverse"] = bool(value["reverse"])
 
     def setDeadzoneSize(self, value):
-        self.deadzoneSize = self.getStickValue(value)
+        self.deadzoneSize = sc.getStickValue(value)
         return self.deadzoneSize
 
     def setKbModeXOffset(self, value):
-        self.kbModeOffsets["x"] = self.getStickValue(value)
+        self.kbModeOffsets["x"] = sc.getStickValue(value)
         return self.kbModeOffsets["x"]
 
     def setKbModeYOffset(self, value):
-        self.kbModeOffsets["y"] = self.getStickValue(value)
+        self.kbModeOffsets["y"] = sc.getStickValue(value)
         return self.kbModeOffsets["y"]
+
+    def setKbModeYConeEnd(self, value):
+        self.kbModeYConeEnd = value
+        return self.kbModeYConeEnd
 
     def loadFromFile(self):
         configFilePointer = None
@@ -132,6 +127,9 @@ class Config:
                 if "kbModeOffsets" in configData:
                     self.kbModeOffsets = configData["kbModeOffsets"]
 
+                if "kbModeYConeEnd" in configData:
+                    self.kbModeYConeEnd = configData["kbModeYConeEnd"]
+
                 if "profiles" in configData:
                     self.profiles = configData["profiles"]
 
@@ -141,6 +139,7 @@ class Config:
             "stickAxesOrientation": self.stickAxesOrientation,
             "deadzoneSize": self.deadzoneSize,
             "kbModeOffsets": self.kbModeOffsets,
+            "kbModeYConeEnd": self.kbModeYConeEnd,
             "profiles": self.profiles
         }
 
@@ -161,6 +160,7 @@ class Config:
             "stickAxesOrientation": self.stickAxesOrientation,
             "deadzoneSize": self.deadzoneSize,
             "kbModeOffsets": self.kbModeOffsets,
+            "kbModeYConeEnd": self.kbModeYConeEnd,
             "profiles": self.profiles
         }
 

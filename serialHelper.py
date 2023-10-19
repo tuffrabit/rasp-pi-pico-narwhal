@@ -7,6 +7,7 @@ class SerialHelper:
         self.config = None
         self.profileManager = None
         self.stick = None
+        self.stickDeadzone = None
         self.kbMode = None
 
     def setConfig(self, config):
@@ -14,6 +15,9 @@ class SerialHelper:
 
     def setProfileManager(self, profileManager):
         self.profileManager = profileManager
+
+    def setStickDeadzone(self, stickDeadzone):
+        self.stickDeadzone = stickDeadzone
 
     def setStick(self, stick):
         self.stick = stick
@@ -104,6 +108,8 @@ class SerialHelper:
                     self.handleSetKbModeXStartOffset(jsonData)
                 elif "setKbModeYStartOffset" in jsonData:
                     self.handleSetKbModeYStartOffset(jsonData)
+                elif "setKbModeYConeEnd" in jsonData:
+                    self.handleSetKbModeYConeEnd(jsonData)
 
         return returnAction
 
@@ -115,6 +121,7 @@ class SerialHelper:
                     "stickBoundaries": self.config.stickBoundaries,
                     "deadzoneSize": self.config.deadzoneSize,
                     "kbModeOffsets": self.config.kbModeOffsets,
+                    "kbModeYConeEnd": self.config.kbModeYConeEnd,
                     "stickAxesOrientation": self.config.stickAxesOrientation
                 }
             )
@@ -218,24 +225,60 @@ class SerialHelper:
             self.write("getSaveData", self.config.getDataJson())
 
     def handleSetStickXHigh(self, jsonData):
-        if jsonData and self.stick is not None:
-            result = self.stick.setXHigh(jsonData["setStickXHigh"])
-            self.write("setStickXHigh", result)
+        result = False
+
+        if jsonData:
+            if self.stickDeadzone is not None:
+                self.stickDeadzone.setXHigh(jsonData["setStickXHigh"])
+
+            if self.stick is not None:
+                self.stick.setXHigh(jsonData["setStickXHigh"])
+
+            result = True
+
+        self.write("setStickXHigh", result)
 
     def handleSetStickXLow(self, jsonData):
-        if jsonData and self.stick is not None:
-            result = self.stick.setXLow(jsonData["setStickXLow"])
-            self.write("setStickXLow", result)
+        result = False
+
+        if jsonData:
+            if self.stickDeadzone is not None:
+                self.stickDeadzone.setXLow(jsonData["setStickXLow"])
+
+            if self.stick is not None:
+                self.stick.setXLow(jsonData["setStickXLow"])
+
+            result = True
+
+        self.write("setStickXLow", result)
 
     def handleSetStickYHigh(self, jsonData):
-        if jsonData and self.stick is not None:
-            result = self.stick.setYHigh(jsonData["setStickYHigh"])
-            self.write("setStickYHigh", result)
+        result = False
+
+        if jsonData:
+            if self.stickDeadzone is not None:
+                self.stickDeadzone.setYHigh(jsonData["setStickYHigh"])
+
+            if self.stick is not None:
+                self.stick.setYHigh(jsonData["setStickYHigh"])
+
+            result = True
+
+        self.write("setStickYHigh", result)
 
     def handleSetStickYLow(self, jsonData):
-        if jsonData and self.stick is not None:
-            result = self.stick.setYLow(jsonData["setStickYLow"])
-            self.write("setStickYLow", result)
+        result = False
+
+        if jsonData:
+            if self.stickDeadzone is not None:
+                self.stickDeadzone.setYLow(jsonData["setStickYLow"])
+
+            if self.stick is not None:
+                self.stick.setYLow(jsonData["setStickYLow"])
+
+            result = True
+
+        self.write("setStickYLow", result)
 
     def handleSetStickXOrientation(self, jsonData):
         if jsonData and self.config is not None:
@@ -250,6 +293,9 @@ class SerialHelper:
     def handleSetDeadzone(self, jsonData):
         if jsonData and self.config is not None:
             self.config.setDeadzoneSize(jsonData["setDeadzone"])
+            self.stickDeadzone.setDeadzoneBuffer(jsonData["setDeadzone"])
+            self.stickDeadzone.initBoundary()
+            self.stick.setDeadzone(self.stickDeadzone)
             self.write("setDeadzone", True)
 
     def handleSetKbModeXStartOffset(self, jsonData):
@@ -263,3 +309,9 @@ class SerialHelper:
             result = self.config.setKbModeYOffset(jsonData["setKbModeYStartOffset"])
             self.kbMode.setYStartOffset(result)
             self.write("setKbModeYStartOffset", True)
+
+    def handleSetKbModeYConeEnd(self, jsonData):
+        if jsonData and self.config is not None and self.kbMode is not None:
+            result = self.config.setKbModeYConeEnd(jsonData["setKbModeYConeEnd"])
+            self.kbMode.setYConeEnd(result)
+            self.write("setKbModeYConeEnd", True)
