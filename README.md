@@ -11,4 +11,5 @@ Firmware for the TuFFpad on the RP2040 platform (Raspberry Pi Pico)
  7. Copy and then paste into the CIRCUITPY drive choosing to overwrite everything
  8. The tuffpad should auto reboot
  9. Unplug and replug the tuffpad so the CIRCUITPY drive disappears
+
 **Be sure to match the version of the [management app](https://github.com/tuffrabit/godot-narwhal-manager/releases) to the version of the firmware your tuffpad is running**
