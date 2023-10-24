@@ -200,6 +200,13 @@ setRunValuesFromCurrentProfile()
 goToNextProfile = False
 goToPreviousProfile = False
 reloadCurrentProfile = False
+
+doReadStickValues = False
+readStickValues = [
+    {"x": 0, "y": 0},
+    {"x": 0, "y": 0}
+]
+
 #currentTime = time.monotonic()
 #iterations = 0
 
@@ -225,6 +232,8 @@ while True:
         if commandAction is not None:
             if "profileChange" in commandAction and commandAction["profileChange"]:
                 reloadCurrentProfile = True
+            elif "readStickValues" in commandAction and commandAction["readStickValues"]:
+                doReadStickValues = True
 
         #if time.monotonic() - currentTime > 1.0:
         #    print("free memory: " + str(gc.mem_alloc()))
@@ -255,6 +264,14 @@ while True:
 
             if stickYAxisOrientation["reverse"]:
                 stickValues[1] = stickValues[1] * -1
+        
+        if doReadStickValues:
+            doReadStickValues = False
+            readStickValues[0]["x"] = ax.value;
+            readStickValues[0]["y"] = ay.value;
+            readStickValues[1]["x"] = stickValues[0];
+            readStickValues[1]["y"] = stickValues[1];
+            serialHelper.write("readStickValues", readStickValues)
 
         if isKeyboardMode:
             up, down, left, right = kbMode.calculateStickInput(stickValues)
