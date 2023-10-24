@@ -29,15 +29,14 @@ class SerialHelper:
         out = None
 
         if usb_cdc.data and usb_cdc.data.in_waiting > 0:
-            byte = usb_cdc.data.read(1)
-            #print("Serial In Byte: " + str(byte))
+            readBytes = usb_cdc.data.read(1)
 
-            if byte == b'\n':
-                print("Serial In: " + self.inBytes.decode("utf-8"))
-                out = self.inBytes.decode("ascii")
+            if readBytes == b'\n':
+                out = self.inBytes.decode("utf-8")
+                print(f'Serial In: {out}')
                 self.inBytes = bytearray()
             else:
-                self.inBytes += byte
+                self.inBytes += readBytes
 
                 if len(self.inBytes) == 129:
                     self.inBytes = self.inBytes[128] + self.inBytes[0:127]
@@ -62,9 +61,7 @@ class SerialHelper:
             jsonData = json.loads(serialOut)
 
             if jsonData:
-                print("jsonData:")
-                print(jsonData)
-                print("")
+                print(f'jsonData: {jsonData}')
 
                 if "getGlobalSettings" in jsonData:
                     self.handleGetGlobalSettings()
@@ -110,6 +107,8 @@ class SerialHelper:
                     self.handleSetKbModeYStartOffset(jsonData)
                 elif "setKbModeYConeEnd" in jsonData:
                     self.handleSetKbModeYConeEnd(jsonData)
+                elif "readStickValues" in jsonData:
+                    returnAction = self.handleReadStickValues()
 
         return returnAction
 
@@ -315,3 +314,6 @@ class SerialHelper:
             result = self.config.setKbModeYConeEnd(jsonData["setKbModeYConeEnd"])
             self.kbMode.setYConeEnd(result)
             self.write("setKbModeYConeEnd", True)
+    
+    def handleReadStickValues(self):
+        return {"readStickValues": True}
