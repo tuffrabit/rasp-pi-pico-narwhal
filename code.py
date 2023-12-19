@@ -52,6 +52,11 @@ keyboardModeStickLeftKey = None
 keyboardModeStickRightKey = None
 stickButton = None
 thumbAction = None
+dpadUpAction = None
+dpadDownAction = None
+dpadLeftAction = None
+dpadRightAction = None
+dpadCenterAction = None
 
 actionStates = {
     "stickButton": False,
@@ -60,6 +65,11 @@ actionStates = {
     "kbDown": False,
     "kbLeft": False,
     "kbRight": False,
+    "dpadUp": False,
+    "dpadDown": False,
+    "dpadLeft": False,
+    "dpadRight": False,
+    "dpadCenter": False,
     "0": False,
     "1": False,
     "2": False,
@@ -109,6 +119,21 @@ joySelectButton.pull = digitalio.Pull.UP
 thumbButton = digitalio.DigitalInOut(board.GP10)
 thumbButton.direction = digitalio.Direction.INPUT
 thumbButton.pull = digitalio.Pull.UP
+dpadUpButton = digitalio.DigitalInOut(board.GP11)
+dpadUpButton.direction = digitalio.Direction.INPUT
+dpadUpButton.pull = digitalio.Pull.UP
+dpadDownButton = digitalio.DigitalInOut(board.GP13)
+dpadDownButton.direction = digitalio.Direction.INPUT
+dpadDownButton.pull = digitalio.Pull.UP
+dpadLeftButton = digitalio.DigitalInOut(board.GP14)
+dpadLeftButton.direction = digitalio.Direction.INPUT
+dpadLeftButton.pull = digitalio.Pull.UP
+dpadRightButton = digitalio.DigitalInOut(board.GP12)
+dpadRightButton.direction = digitalio.Direction.INPUT
+dpadRightButton.pull = digitalio.Pull.UP
+dpadCenterButton = digitalio.DigitalInOut(board.GP15)
+dpadCenterButton.direction = digitalio.Direction.INPUT
+dpadCenterButton.pull = digitalio.Pull.UP
 
 # Connect an analog two-axis joystick to A4 and A5.
 ax = analogio.AnalogIn(board.A0)
@@ -122,7 +147,7 @@ keyMatrix = keypad.KeyMatrix(
 
 # Handle deadzone calc
 led.setLedState(True)
-led.setRGBLedColor(0, 255, 0)
+led.fadeToRGBLedColor(0, 255, 0)
 stickDeadzone.setDeadzoneBuffer(config.deadzoneSize)
 stickDeadzone.setXHigh(config.stickBoundaries["highX"])
 stickDeadzone.setXLow(config.stickBoundaries["lowX"])
@@ -136,7 +161,7 @@ stick.setXLow(config.stickBoundaries["lowX"])
 stick.setYHigh(config.stickBoundaries["highY"])
 stick.setYLow(config.stickBoundaries["lowY"])
 led.setLedState(False)
-led.setRGBLedColor(0, 0, 255)
+led.fadeToRGBLedColor(0, 0, 255)
 
 # Handle startup flags
 startup.detectStartupFlags(joySelectButton)
@@ -155,9 +180,14 @@ def setRunValuesFromCurrentProfile():
     global keyboardModeStickRightKey
     global stickButton
     global thumbAction
+    global dpadUpAction
+    global dpadDownAction
+    global dpadLeftAction
+    global dpadRightAction
+    global dpadCenterAction
 
     rgbLedValues = profileHelper.getRGBLedValues(currentProfile)
-    led.setRGBLedColor(rgbLedValues["red"], rgbLedValues["green"], rgbLedValues["blue"])
+    led.fadeToRGBLedColor(rgbLedValues["red"], rgbLedValues["green"], rgbLedValues["blue"])
     isKeyboardMode = profileHelper.getIsKbModeEnabled(currentProfile)
     keys = profileHelper.getKeypadBindings(currentProfile)
     keyboardModeStickUpKey = profileHelper.getKbModeBinding("up", currentProfile)
@@ -166,6 +196,11 @@ def setRunValuesFromCurrentProfile():
     keyboardModeStickRightKey = profileHelper.getKbModeBinding("right", currentProfile)
     stickButton = profileHelper.getJoystickButton(currentProfile)
     thumbAction = profileHelper.getThumbButton(currentProfile)
+    dpadUpAction = profileHelper.getDpadBinding("up", currentProfile)
+    dpadDownAction = profileHelper.getDpadBinding("down", currentProfile)
+    dpadLeftAction = profileHelper.getDpadBinding("left", currentProfile)
+    dpadRightAction = profileHelper.getDpadBinding("right", currentProfile)
+    dpadCenterAction = profileHelper.getDpadBinding("center", currentProfile)
 
 def handleAction(stateIndex, trigger, action):
     global actionStates
@@ -244,6 +279,11 @@ while True:
 
         goToNextProfile, goToPreviousProfile = handleAction("stickButton", not joySelectButton.value, stickButton)
         goToNextProfile, goToPreviousProfile = handleAction("thumbButton", not thumbButton.value, thumbAction)
+        goToNextProfile, goToPreviousProfile = handleAction("dpadUp", not dpadUpButton.value, dpadUpAction)
+        goToNextProfile, goToPreviousProfile = handleAction("dpadDown", not dpadDownButton.value, dpadDownAction)
+        goToNextProfile, goToPreviousProfile = handleAction("dpadLeft", not dpadLeftButton.value, dpadLeftAction)
+        goToNextProfile, goToPreviousProfile = handleAction("dpadRight", not dpadRightButton.value, dpadRightAction)
+        goToNextProfile, goToPreviousProfile = handleAction("dpadCenter", not dpadCenterButton.value, dpadCenterAction)
         stickValues = stick.doStickCalculations(ax, ay, True)
         stickAxesOrientation = config.stickAxesOrientation
         stickXAxisOrientation = stickAxesOrientation["x"]
@@ -264,7 +304,7 @@ while True:
 
             if stickYAxisOrientation["reverse"]:
                 stickValues[1] = stickValues[1] * -1
-        
+
         if doReadStickValues:
             doReadStickValues = False
             readStickValues[0]["x"] = ax.value;

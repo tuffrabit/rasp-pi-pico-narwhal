@@ -191,6 +191,9 @@ class ProfileManager:
                     elif dpadName == "right":
                         profileToUpdate["dpad"]["right"] = value
                         success = True
+                    elif dpadName == "center":
+                        profileToUpdate["dpad"]["center"] = value
+                        success = True
                 elif valueName == "rgb" and len(value) == 6:
                     rgb = tuple(int(value[i:i+2], 16) for i in (0, 2, 4))
 

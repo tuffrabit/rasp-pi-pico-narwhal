@@ -45,6 +45,15 @@ class ProfileHelper:
 
         return binding
 
+    def getDpadBinding(self, direction, profile):
+        binding = None
+        dpadBindings = self.getProfileProperty("dpad", profile)
+
+        if isinstance(dpadBindings, dict) and direction in dpadBindings:
+            binding = self.getAction(dpadBindings[direction])
+
+        return binding
+
     def getName(self, profile):
         return self.getProfileProperty("name", profile)
 

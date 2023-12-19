@@ -33,7 +33,10 @@ class SerialHelper:
 
             if readBytes == b'\n':
                 out = self.inBytes.decode("utf-8")
-                print(f'Serial In: {out}')
+
+                if "ping" not in out:
+                    print(f'Serial In: {out}')
+
                 self.inBytes = bytearray()
             else:
                 self.inBytes += readBytes
@@ -46,7 +49,10 @@ class SerialHelper:
     def write(self, command, data):
         if usb_cdc.data:
             serialOut = bytearray(json.dumps({command: data}) + "\r\n")
-            print("Bytes written: " + str(usb_cdc.data.write(serialOut)))
+            bytesWritten = str(usb_cdc.data.write(serialOut))
+
+            if "ping" not in serialOut:
+                print("Bytes written: " + bytesWritten)
 
     def checkForCommands(self):
         returnAction = None
@@ -61,7 +67,8 @@ class SerialHelper:
             jsonData = json.loads(serialOut)
 
             if jsonData:
-                print(f'jsonData: {jsonData}')
+                if "ping" not in serialOut:
+                    print(f'jsonData: {jsonData}')
 
                 if "getGlobalSettings" in jsonData:
                     self.handleGetGlobalSettings()
@@ -314,6 +321,6 @@ class SerialHelper:
             result = self.config.setKbModeYConeEnd(jsonData["setKbModeYConeEnd"])
             self.kbMode.setYConeEnd(result)
             self.write("setKbModeYConeEnd", True)
-    
+
     def handleReadStickValues(self):
         return {"readStickValues": True}

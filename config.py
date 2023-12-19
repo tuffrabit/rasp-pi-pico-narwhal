@@ -69,7 +69,8 @@ class Config:
                 "up": "w",
                 "down": "s",
                 "left": "a",
-                "right": "d"
+                "right": "d",
+                "center": "g"
             },
             "rgb": {
                 "red": 255,
