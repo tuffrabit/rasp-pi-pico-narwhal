@@ -26,6 +26,17 @@ class ProfileManager:
 
         return profile
 
+    def getProfileIndexByName(self, name):
+        index = None
+
+        if self.config != None:
+            for tempIndex, tempProfile in enumerate(self.config.profiles):
+                if isinstance(tempProfile, dict) and "name" in tempProfile and tempProfile["name"] == name:
+                    index = tempIndex
+                    break
+
+        return index
+
     def getInitialProfile(self):
         return self.getProfileByIndex(0)
 
@@ -128,6 +139,20 @@ class ProfileManager:
                 success = True
 
         return success
+
+    def reorderProfile(self, profileName, newIndex):
+        if not profileName or self.config is None:
+            return False
+
+        targetProfileCurrentIndex = self.getProfileIndexByName(profileName)
+
+        if targetProfileCurrentIndex is None or targetProfileCurrentIndex < 0:
+            return False
+
+        targetProfile = self.config.profiles[targetProfileCurrentIndex]
+        self.config.profiles.pop(targetProfileCurrentIndex)
+        self.config.profiles.insert(newIndex, targetProfile)
+        return True
 
     def setProfileValue(self, profileName, valueName, value):
         success = False

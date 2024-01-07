@@ -79,6 +79,18 @@ class Config:
             }
         }
 
+    def setStickXLow(self, value):
+        self.stickBoundaries["lowX"] = value
+
+    def setStickXHigh(self, value):
+        self.stickBoundaries["highX"] = value
+
+    def setStickYLow(self, value):
+        self.stickBoundaries["lowY"] = value
+
+    def setStickYHigh(self, value):
+        self.stickBoundaries["highY"] = value
+
     def setStickXOrientation(self, value):
         self.stickAxesOrientation["x"]["axis"] = int(value["axis"])
         self.stickAxesOrientation["x"]["reverse"] = bool(value["reverse"])

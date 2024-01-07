@@ -116,6 +116,8 @@ class SerialHelper:
                     self.handleSetKbModeYConeEnd(jsonData)
                 elif "readStickValues" in jsonData:
                     returnAction = self.handleReadStickValues()
+                elif "reorderProfile" in jsonData:
+                    self.handleReorderProfile(jsonData)
 
         return returnAction
 
@@ -240,6 +242,9 @@ class SerialHelper:
             if self.stick is not None:
                 self.stick.setXHigh(jsonData["setStickXHigh"])
 
+            if self.config is not None:
+                self.config.setStickXHigh(jsonData["setStickXHigh"])
+
             result = True
 
         self.write("setStickXHigh", result)
@@ -253,6 +258,9 @@ class SerialHelper:
 
             if self.stick is not None:
                 self.stick.setXLow(jsonData["setStickXLow"])
+
+            if self.config is not None:
+                self.config.setStickXLow(jsonData["setStickXLow"])
 
             result = True
 
@@ -268,6 +276,9 @@ class SerialHelper:
             if self.stick is not None:
                 self.stick.setYHigh(jsonData["setStickYHigh"])
 
+            if self.config is not None:
+                self.config.setStickYHigh(jsonData["setStickYHigh"])
+
             result = True
 
         self.write("setStickYHigh", result)
@@ -281,6 +292,9 @@ class SerialHelper:
 
             if self.stick is not None:
                 self.stick.setYLow(jsonData["setStickYLow"])
+
+            if self.config is not None:
+                self.config.setStickYLow(jsonData["setStickYLow"])
 
             result = True
 
@@ -324,3 +338,8 @@ class SerialHelper:
 
     def handleReadStickValues(self):
         return {"readStickValues": True}
+
+    def handleReorderProfile(self, jsonData):
+        if jsonData and self.config is not None and self.profileManager is not None:
+            result = self.profileManager.reorderProfile(jsonData["reorderProfile"]["profileName"], jsonData["reorderProfile"]["position"])
+            self.write("reorderProfile", result)
