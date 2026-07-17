@@ -24,6 +24,10 @@ class KbMode:
         down = False
         left = False
         right = False
+
+        if self.xStartOffset is None or self.yStartOffset is None or self.yConeEnd is None:
+            return up, down, left, right
+
         xStick = stickValues[0]
         yStick = stickValues[1]
         xStickAbs = abs(xStick)

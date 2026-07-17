@@ -3,9 +3,6 @@ import math
 def magnitude(x, y):
     return math.sqrt(x * x + y * y)
 
-def normalize(magnitude, x, y):
-    return [x / magnitude, y / magnitude]
-
 def constrain(x, a, b):
     if x < a:
         x = a
@@ -20,7 +17,7 @@ def rangeMap(x, inMin, inMax, outMin, outMax):
 def getStickValue(value):
     try:
         value = int(value)
-    except:
+    except (TypeError, ValueError):
         value = None
 
     if value is not None and (value < 1 or value > 65535):

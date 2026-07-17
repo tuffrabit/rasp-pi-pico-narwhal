@@ -28,28 +28,36 @@ class SerialHelper:
     def read(self):
         out = None
 
-        if usb_cdc.data and usb_cdc.data.in_waiting > 0:
-            readBytes = usb_cdc.data.read(1)
+        if usb_cdc.data:
+            if usb_cdc.data.in_waiting > 0:
+                readBytes = usb_cdc.data.read(usb_cdc.data.in_waiting)
 
-            if readBytes == b'\n':
-                out = self.inBytes.decode("utf-8")
+                if readBytes:
+                    self.inBytes += readBytes
+
+                    # Cap the buffer so endless garbage can't grow it forever.
+                    if len(self.inBytes) > 128:
+                        self.inBytes = self.inBytes[-128:]
+
+            newlineIndex = self.inBytes.find(b'\n')
+
+            if newlineIndex > -1:
+                try:
+                    out = self.inBytes[:newlineIndex].decode("utf-8")
+                except UnicodeError:
+                    out = ""
+
+                self.inBytes = self.inBytes[newlineIndex + 1:]
 
                 if "ping" not in out:
                     print(f'Serial In: {out}')
-
-                self.inBytes = bytearray()
-            else:
-                self.inBytes += readBytes
-
-                if len(self.inBytes) == 129:
-                    self.inBytes = self.inBytes[128] + self.inBytes[0:127]
 
         return out
 
     def write(self, command, data):
         if usb_cdc.data:
-            serialOut = bytearray(json.dumps({command: data}) + "\r\n")
-            bytesWritten = str(usb_cdc.data.write(serialOut))
+            serialOut = json.dumps({command: data}) + "\r\n"
+            bytesWritten = str(usb_cdc.data.write(serialOut.encode("utf-8")))
 
             if "ping" not in serialOut:
                 print("Bytes written: " + bytesWritten)
@@ -63,10 +71,15 @@ class SerialHelper:
 
         if serialOut == "areyouatuffpad?":
             self.write("areyouatuffpad?", True)
-        elif serialOut is not None:
-            jsonData = json.loads(serialOut)
+        elif serialOut:
+            jsonData = None
 
-            if jsonData:
+            try:
+                jsonData = json.loads(serialOut)
+            except ValueError:
+                print(f'Invalid JSON received: {serialOut}')
+
+            if jsonData and isinstance(jsonData, dict):
                 if "ping" not in serialOut:
                     print(f'jsonData: {jsonData}')
 
@@ -103,9 +116,9 @@ class SerialHelper:
                 elif "setStickYLow" in jsonData:
                     self.handleSetStickYLow(jsonData)
                 elif "setStickXOrientation" in jsonData:
-                    self.handleSetStickXOrientation(jsonData)
+                    returnAction = self.handleSetStickXOrientation(jsonData)
                 elif "setStickYOrientation" in jsonData:
-                    self.handleSetStickYOrientation(jsonData)
+                    returnAction = self.handleSetStickYOrientation(jsonData)
                 elif "setDeadzone" in jsonData:
                     self.handleSetDeadzone(jsonData)
                 elif "setKbModeXStartOffset" in jsonData:
@@ -301,14 +314,24 @@ class SerialHelper:
         self.write("setStickYLow", result)
 
     def handleSetStickXOrientation(self, jsonData):
+        returnValue = None
+
         if jsonData and self.config is not None:
             self.config.setStickXOrientation(jsonData["setStickXOrientation"])
             self.write("setStickXOrientation", True)
+            returnValue = {"orientationChange": True}
+
+        return returnValue
 
     def handleSetStickYOrientation(self, jsonData):
+        returnValue = None
+
         if jsonData and self.config is not None:
             self.config.setStickYOrientation(jsonData["setStickYOrientation"])
             self.write("setStickYOrientation", True)
+            returnValue = {"orientationChange": True}
+
+        return returnValue
 
     def handleSetDeadzone(self, jsonData):
         if jsonData and self.config is not None:

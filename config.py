@@ -1,6 +1,6 @@
 import stickCommon as sc
-import  json
-import storage
+import json
+import os
 
 class Config:
     def __init__(self):
@@ -80,71 +80,103 @@ class Config:
         }
 
     def setStickXLow(self, value):
-        self.stickBoundaries["lowX"] = value
+        value = sc.getStickValue(value)
+
+        if value is not None:
+            self.stickBoundaries["lowX"] = value
 
     def setStickXHigh(self, value):
-        self.stickBoundaries["highX"] = value
+        value = sc.getStickValue(value)
+
+        if value is not None:
+            self.stickBoundaries["highX"] = value
 
     def setStickYLow(self, value):
-        self.stickBoundaries["lowY"] = value
+        value = sc.getStickValue(value)
+
+        if value is not None:
+            self.stickBoundaries["lowY"] = value
 
     def setStickYHigh(self, value):
-        self.stickBoundaries["highY"] = value
+        value = sc.getStickValue(value)
+
+        if value is not None:
+            self.stickBoundaries["highY"] = value
 
     def setStickXOrientation(self, value):
-        self.stickAxesOrientation["x"]["axis"] = int(value["axis"])
-        self.stickAxesOrientation["x"]["reverse"] = bool(value["reverse"])
+        try:
+            self.stickAxesOrientation["x"]["axis"] = int(value["axis"])
+            self.stickAxesOrientation["x"]["reverse"] = bool(value["reverse"])
+        except (TypeError, ValueError, KeyError):
+            pass
 
     def setStickYOrientation(self, value):
-        self.stickAxesOrientation["y"]["axis"] = int(value["axis"])
-        self.stickAxesOrientation["y"]["reverse"] = bool(value["reverse"])
+        try:
+            self.stickAxesOrientation["y"]["axis"] = int(value["axis"])
+            self.stickAxesOrientation["y"]["reverse"] = bool(value["reverse"])
+        except (TypeError, ValueError, KeyError):
+            pass
 
     def setDeadzoneSize(self, value):
-        self.deadzoneSize = sc.getStickValue(value)
+        value = sc.getStickValue(value)
+
+        if value is not None:
+            self.deadzoneSize = value
+
         return self.deadzoneSize
 
     def setKbModeXOffset(self, value):
-        self.kbModeOffsets["x"] = sc.getStickValue(value)
+        value = sc.getStickValue(value)
+
+        if value is not None:
+            self.kbModeOffsets["x"] = value
+
         return self.kbModeOffsets["x"]
 
     def setKbModeYOffset(self, value):
-        self.kbModeOffsets["y"] = sc.getStickValue(value)
+        value = sc.getStickValue(value)
+
+        if value is not None:
+            self.kbModeOffsets["y"] = value
+
         return self.kbModeOffsets["y"]
 
     def setKbModeYConeEnd(self, value):
-        self.kbModeYConeEnd = value
+        value = sc.getStickValue(value)
+
+        if value is not None:
+            self.kbModeYConeEnd = value
+
         return self.kbModeYConeEnd
 
     def loadFromFile(self):
-        configFilePointer = None
+        configData = None
 
         try:
-            configFilePointer = open('config.json', 'r')
-        except:
+            with open('config.json', 'r') as configFilePointer:
+                configData = json.load(configFilePointer)
+        except Exception:
+            # Missing or corrupt config file: keep the defaults.
             pass
 
-        if configFilePointer != None:
-            configData = json.load(configFilePointer)
-            configFilePointer.close()
+        if configData:
+            if "stickBoundaries" in configData:
+                self.stickBoundaries = configData["stickBoundaries"]
 
-            if configData:
-                if "stickBoundaries" in configData:
-                    self.stickBoundaries = configData["stickBoundaries"]
+            if "stickAxesOrientation" in configData:
+                self.stickAxesOrientation = configData["stickAxesOrientation"]
 
-                if "stickAxesOrientation" in configData:
-                    self.stickAxesOrientation = configData["stickAxesOrientation"]
+            if "deadzoneSize" in configData:
+                self.deadzoneSize = configData["deadzoneSize"]
 
-                if "deadzoneSize" in configData:
-                    self.deadzoneSize = configData["deadzoneSize"]
+            if "kbModeOffsets" in configData:
+                self.kbModeOffsets = configData["kbModeOffsets"]
 
-                if "kbModeOffsets" in configData:
-                    self.kbModeOffsets = configData["kbModeOffsets"]
+            if "kbModeYConeEnd" in configData:
+                self.kbModeYConeEnd = configData["kbModeYConeEnd"]
 
-                if "kbModeYConeEnd" in configData:
-                    self.kbModeYConeEnd = configData["kbModeYConeEnd"]
-
-                if "profiles" in configData:
-                    self.profiles = configData["profiles"]
+            if "profiles" in configData:
+                self.profiles = configData["profiles"]
 
     def saveToFile(self):
         configData = {
@@ -159,10 +191,22 @@ class Config:
         configJson = json.dumps(configData)
         written = 0
 
-        with open('config.json', 'w') as f:
-            written = f.write(configJson)
+        try:
+            with open('config.tmp', 'w') as f:
+                written = f.write(configJson)
+        except Exception:
+            return False
 
         if written > 0:
+            # Rename over the old file so a power loss mid-save can't
+            # leave a half-written config.json behind.
+            try:
+                os.rename('config.tmp', 'config.json')
+            except OSError:
+                # Some builds won't rename over an existing file.
+                os.remove('config.json')
+                os.rename('config.tmp', 'config.json')
+
             return True
         else:
             return False

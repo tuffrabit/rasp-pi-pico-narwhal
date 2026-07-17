@@ -16,15 +16,27 @@ class ProfileHelper:
     def getAction(self, name):
         action = {"type": None, "action": None}
 
+        if not isinstance(name, str):
+            return action
+
         if name == "nextProfile" or name == "previousProfile":
             action["type"] = 3
             action["action"] = name
         elif name.startswith("gamepadButton"):
-            action["type"] = 2
-            action["action"] = int(name[13:])
+            try:
+                buttonNumber = int(name[13:])
+            except ValueError:
+                buttonNumber = None
+
+            if buttonNumber is not None and 1 <= buttonNumber <= 16:
+                action["type"] = 2
+                action["action"] = buttonNumber
         else:
-            action["type"] = 1
-            action["action"] = self.keyConverter.getKeycodeFromId(name)
+            keycode = self.keyConverter.getKeycodeFromId(name)
+
+            if keycode is not None:
+                action["type"] = 1
+                action["action"] = keycode
 
         return action
 

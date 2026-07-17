@@ -41,7 +41,7 @@ class Led:
             self.greenPwm.duty_cycle = 0
             self.bluePwm.duty_cycle = 0
 
-            for i in range(100):
+            for i in range(0, 101, 5):
                 brightness = self.duty_cycle(i)
 
                 if brightness < red:

@@ -1,6 +1,5 @@
 import stickCommon as sc
 import time
-import math
 
 class StickDeadzone:
     def __init__(self):
@@ -25,19 +24,34 @@ class StickDeadzone:
         return self.lowerBoundary
 
     def setDeadzoneBuffer(self, deadzoneBuffer):
-        self.deadzoneBuffer = sc.constrain(sc.rangeMap(deadzoneBuffer, 0, 32768, 0.0, 1.0), 0.0, 1.0)
+        value = sc.getStickValue(deadzoneBuffer)
+
+        if value is not None:
+            self.deadzoneBuffer = sc.constrain(sc.rangeMap(value, 0, 32768, 0.0, 1.0), 0.0, 1.0)
 
     def setXHigh(self, xHigh):
-        self.xHigh = sc.getStickValue(xHigh)
+        value = sc.getStickValue(xHigh)
+
+        if value is not None:
+            self.xHigh = value
 
     def setXLow(self, xLow):
-        self.xLow = sc.getStickValue(xLow)
+        value = sc.getStickValue(xLow)
+
+        if value is not None:
+            self.xLow = value
 
     def setYHigh(self, yHigh):
-        self.yHigh = sc.getStickValue(yHigh)
+        value = sc.getStickValue(yHigh)
+
+        if value is not None:
+            self.yHigh = value
 
     def setYLow(self, yLow):
-        self.yLow = sc.getStickValue(yLow)
+        value = sc.getStickValue(yLow)
+
+        if value is not None:
+            self.yLow = value
 
     def diff(self, x, y):
         if x > y:

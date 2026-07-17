@@ -4,17 +4,12 @@ import analogio
 import usb_hid
 import usb_cdc
 import keypad
-import gc
-import time
 
 from adafruit_hid.keyboard import Keyboard
-from adafruit_hid.keyboard_layout_us import KeyboardLayoutUS
-from adafruit_hid.keycode import Keycode
 from hid_gamepad import Gamepad
 from stickDeadzone import StickDeadzone
 from stick import Stick
 from led import Led
-from startup import Startup
 from kbMode import KbMode
 from config import Config
 from profileManager import ProfileManager
@@ -30,20 +25,17 @@ from serialHelper import SerialHelper
 
 # Globals
 keyboard = Keyboard(usb_hid.devices)
-keyboard_layout = KeyboardLayoutUS(keyboard)
 gp = Gamepad(usb_hid.devices)
 stickDeadzone = StickDeadzone()
 stick = Stick()
 led = Led()
 kbMode = KbMode()
-startup = Startup()
 config = Config()
 profileManager = ProfileManager()
 profileHelper = ProfileHelper()
 keyConverter = KeyConverter()
 serialHelper = SerialHelper()
 currentProfile = None
-deadzone = 0
 isKeyboardMode = False
 keys = None
 keyboardModeStickUpKey = None
@@ -57,6 +49,10 @@ dpadDownAction = None
 dpadLeftAction = None
 dpadRightAction = None
 dpadCenterAction = None
+stickXOrientationAxis = 0
+stickXOrientationReverse = False
+stickYOrientationAxis = 1
+stickYOrientationReverse = True
 
 actionStates = {
     "stickButton": False,
@@ -109,7 +105,6 @@ kbMode.setYStartOffset(config.kbModeOffsets['y'])
 kbMode.setYConeEnd(config.kbModeYConeEnd)
 kbMode.setKeyboard(keyboard)
 led.setRGBLed(board.GP21, board.GP20, board.GP19)
-startup.setLed(led)
 
 # Create some buttons. The physical buttons are connected
 # to ground on one side and these and these pins on the other.
@@ -145,6 +140,22 @@ keyMatrix = keypad.KeyMatrix(
     column_pins=(board.GP1, board.GP2, board.GP3, board.GP4, board.GP5),
 )
 
+def resolveStickOrientation():
+    global stickXOrientationAxis
+    global stickXOrientationReverse
+    global stickYOrientationAxis
+    global stickYOrientationReverse
+
+    stickAxesOrientation = config.stickAxesOrientation
+
+    if "x" in stickAxesOrientation:
+        stickXOrientationAxis = stickAxesOrientation["x"].get("axis", 0)
+        stickXOrientationReverse = stickAxesOrientation["x"].get("reverse", False)
+
+    if "y" in stickAxesOrientation:
+        stickYOrientationAxis = stickAxesOrientation["y"].get("axis", 1)
+        stickYOrientationReverse = stickAxesOrientation["y"].get("reverse", True)
+
 # Handle deadzone calc
 led.setLedState(True)
 led.fadeToRGBLedColor(0, 255, 0)
@@ -154,7 +165,6 @@ stickDeadzone.setXLow(config.stickBoundaries["lowX"])
 stickDeadzone.setYHigh(config.stickBoundaries["highY"])
 stickDeadzone.setYLow(config.stickBoundaries["lowY"])
 stickDeadzone.initDeadzone(ax, ay)
-deadzone = stickDeadzone.getDeadzone()
 stick.setDeadzone(stickDeadzone)
 stick.setXHigh(config.stickBoundaries["highX"])
 stick.setXLow(config.stickBoundaries["lowX"])
@@ -163,14 +173,10 @@ stick.setYLow(config.stickBoundaries["lowY"])
 led.setLedState(False)
 led.fadeToRGBLedColor(0, 0, 255)
 
-# Handle startup flags
-startup.detectStartupFlags(joySelectButton)
-
 def setRunValuesFromCurrentProfile():
     # Profile specific stuff
     global profileHelper
     global currentProfile
-    global rgbLedValues
     global led
     global isKeyboardMode
     global keys
@@ -187,7 +193,10 @@ def setRunValuesFromCurrentProfile():
     global dpadCenterAction
 
     rgbLedValues = profileHelper.getRGBLedValues(currentProfile)
-    led.fadeToRGBLedColor(rgbLedValues["red"], rgbLedValues["green"], rgbLedValues["blue"])
+
+    if rgbLedValues is not None:
+        led.fadeToRGBLedColor(rgbLedValues["red"], rgbLedValues["green"], rgbLedValues["blue"])
+
     isKeyboardMode = profileHelper.getIsKbModeEnabled(currentProfile)
     keys = profileHelper.getKeypadBindings(currentProfile)
     keyboardModeStickUpKey = profileHelper.getKbModeBinding("up", currentProfile)
@@ -203,9 +212,11 @@ def setRunValuesFromCurrentProfile():
     dpadCenterAction = profileHelper.getDpadBinding("center", currentProfile)
 
 def handleAction(stateIndex, trigger, action):
-    global actionStates
-    goToNextProfile = False
-    goToPreviousProfile = False
+    global goToNextProfile
+    global goToPreviousProfile
+
+    if action is None or action["type"] is None or action["action"] is None:
+        return
 
     if trigger != actionStates[stateIndex]:
         actionStates[stateIndex] = trigger
@@ -227,10 +238,8 @@ def handleAction(stateIndex, trigger, action):
                 elif action["action"] == "previousProfile":
                     goToPreviousProfile = True
 
-    return goToNextProfile, goToPreviousProfile
-
 setRunValuesFromCurrentProfile()
-#print("free memory: " + str(gc.mem_alloc()))
+resolveStickOrientation()
 
 goToNextProfile = False
 goToPreviousProfile = False
@@ -242,115 +251,92 @@ readStickValues = [
     {"x": 0, "y": 0}
 ]
 
-#currentTime = time.monotonic()
-#iterations = 0
-
 if usb_cdc.data:
     usb_cdc.data.reset_input_buffer()
 
-lastUpdateTime = time.monotonic()
-
 while True:
-    currentTime = time.monotonic()
-    doLoop = True
+    commandAction = serialHelper.checkForCommands()
 
-    # 0.00833 milliseconds = 120hz
-    #if (currentTime - lastUpdateTime) >= 0.00833:
-    # 0.002 milliseconds = 500hz
-    #if (currentTime - lastUpdateTime) >= 0.002:
-    #    lastUpdateTime = currentTime
-    #    doLoop = True
+    if commandAction is not None:
+        if "profileChange" in commandAction and commandAction["profileChange"]:
+            reloadCurrentProfile = True
+        elif "readStickValues" in commandAction and commandAction["readStickValues"]:
+            doReadStickValues = True
+        elif "orientationChange" in commandAction and commandAction["orientationChange"]:
+            resolveStickOrientation()
 
-    if doLoop:
-        commandAction = serialHelper.checkForCommands()
+    handleAction("stickButton", not joySelectButton.value, stickButton)
+    handleAction("thumbButton", not thumbButton.value, thumbAction)
+    handleAction("dpadUp", not dpadUpButton.value, dpadUpAction)
+    handleAction("dpadDown", not dpadDownButton.value, dpadDownAction)
+    handleAction("dpadLeft", not dpadLeftButton.value, dpadLeftAction)
+    handleAction("dpadRight", not dpadRightButton.value, dpadRightAction)
+    handleAction("dpadCenter", not dpadCenterButton.value, dpadCenterAction)
 
-        if commandAction is not None:
-            if "profileChange" in commandAction and commandAction["profileChange"]:
-                reloadCurrentProfile = True
-            elif "readStickValues" in commandAction and commandAction["readStickValues"]:
-                doReadStickValues = True
+    stickValues = stick.doStickCalculations(ax, ay, True)
+    tempXValue = stickValues[0]
+    tempYValue = stickValues[1]
 
-        #if time.monotonic() - currentTime > 1.0:
-        #    print("free memory: " + str(gc.mem_alloc()))
-        #    print("iterations: " + str(iterations))
-        #    print("")
-        #    iterations = 0
-        #    currentTime = time.monotonic()
+    if stickXOrientationAxis == 1:
+        stickValues[0] = tempYValue
 
-        goToNextProfile, goToPreviousProfile = handleAction("stickButton", not joySelectButton.value, stickButton)
-        goToNextProfile, goToPreviousProfile = handleAction("thumbButton", not thumbButton.value, thumbAction)
-        goToNextProfile, goToPreviousProfile = handleAction("dpadUp", not dpadUpButton.value, dpadUpAction)
-        goToNextProfile, goToPreviousProfile = handleAction("dpadDown", not dpadDownButton.value, dpadDownAction)
-        goToNextProfile, goToPreviousProfile = handleAction("dpadLeft", not dpadLeftButton.value, dpadLeftAction)
-        goToNextProfile, goToPreviousProfile = handleAction("dpadRight", not dpadRightButton.value, dpadRightAction)
-        goToNextProfile, goToPreviousProfile = handleAction("dpadCenter", not dpadCenterButton.value, dpadCenterAction)
-        stickValues = stick.doStickCalculations(ax, ay, True)
-        stickAxesOrientation = config.stickAxesOrientation
-        stickXAxisOrientation = stickAxesOrientation["x"]
-        stickYAxisOrientation = stickAxesOrientation["y"]
-        tempXValue = stickValues[0]
-        tempYValue = stickValues[1]
+    if stickXOrientationReverse:
+        stickValues[0] = stickValues[0] * -1
 
-        if stickXAxisOrientation is not None:
-            if stickXAxisOrientation["axis"] == 1:
-                stickValues[0] = tempYValue
+    if stickYOrientationAxis == 0:
+        stickValues[1] = tempXValue
 
-            if stickXAxisOrientation["reverse"]:
-                stickValues[0] = stickValues[0] * -1
+    if stickYOrientationReverse:
+        stickValues[1] = stickValues[1] * -1
 
-        if stickYAxisOrientation is not None:
-            if stickYAxisOrientation["axis"] == 0:
-                stickValues[1] = tempXValue
+    if doReadStickValues:
+        doReadStickValues = False
+        readStickValues[0]["x"] = ax.value
+        readStickValues[0]["y"] = ay.value
+        readStickValues[1]["x"] = stickValues[0]
+        readStickValues[1]["y"] = stickValues[1]
+        serialHelper.write("readStickValues", readStickValues)
 
-            if stickYAxisOrientation["reverse"]:
-                stickValues[1] = stickValues[1] * -1
+    if isKeyboardMode:
+        up, down, left, right = kbMode.calculateStickInput(stickValues)
+        handleAction("kbUp", up, keyboardModeStickUpKey)
+        handleAction("kbDown", down, keyboardModeStickDownKey)
+        handleAction("kbLeft", left, keyboardModeStickLeftKey)
+        handleAction("kbRight", right, keyboardModeStickRightKey)
+    else:
+        gp.move_joysticks(x=stickValues[0], y=stickValues[1])
 
-        if doReadStickValues:
-            doReadStickValues = False
-            readStickValues[0]["x"] = ax.value;
-            readStickValues[0]["y"] = ay.value;
-            readStickValues[1]["x"] = stickValues[0];
-            readStickValues[1]["y"] = stickValues[1];
-            serialHelper.write("readStickValues", readStickValues)
+    keyEvent = keyMatrix.events.get()
 
-        if isKeyboardMode:
-            up, down, left, right = kbMode.calculateStickInput(stickValues)
-            goToNextProfile, goToPreviousProfile = handleAction("kbUp", up, keyboardModeStickUpKey)
-            goToNextProfile, goToPreviousProfile = handleAction("kbDown", down, keyboardModeStickDownKey)
-            goToNextProfile, goToPreviousProfile = handleAction("kbLeft", left, keyboardModeStickLeftKey)
-            goToNextProfile, goToPreviousProfile = handleAction("kbRight", right, keyboardModeStickRightKey)
-        else:
-            gp.move_joysticks(x=stickValues[0], y=stickValues[1])
+    if keyEvent:
+        keyNumber = keyEvent.key_number
 
-        keyEvent = keyMatrix.events.get()
-
-        if keyEvent:
-            keyNumber = keyEvent.key_number
+        if keys is not None and keyNumber < len(keys):
             keyAction = keys[keyNumber]
-            goToNextProfile, goToPreviousProfile = handleAction(str(keyNumber), keyEvent.pressed, keyAction)
+            handleAction(str(keyNumber), keyEvent.pressed, keyAction)
 
-        if goToNextProfile or goToPreviousProfile:
-            profile = None
+    if goToNextProfile or goToPreviousProfile:
+        profile = None
 
-            if goToNextProfile:
-                profile = profileManager.getNextProfile()
-            elif goToPreviousProfile:
-                profile = profileManager.getPreviousProfile()
+        if goToNextProfile:
+            profile = profileManager.getNextProfile()
+        elif goToPreviousProfile:
+            profile = profileManager.getPreviousProfile()
 
-            goToNextProfile = False
-            goToPreviousProfile = False
+        goToNextProfile = False
+        goToPreviousProfile = False
 
-            if profile != None:
-                currentProfile = profile
-                setRunValuesFromCurrentProfile()
-                gp.release_all_buttons()
-                keyboard.release_all()
-
-        if reloadCurrentProfile:
-            reloadCurrentProfile = False
-            currentProfile = profileManager.getCurrentProfile()
+        if profile != None:
+            currentProfile = profile
             setRunValuesFromCurrentProfile()
             gp.release_all_buttons()
             keyboard.release_all()
 
-        #iterations = iterations + 1
+    if reloadCurrentProfile:
+        reloadCurrentProfile = False
+        currentProfile = profileManager.getCurrentProfile()
+
+        if currentProfile != None:
+            setRunValuesFromCurrentProfile()
+            gp.release_all_buttons()
+            keyboard.release_all()
