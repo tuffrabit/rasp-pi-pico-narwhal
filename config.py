@@ -194,7 +194,11 @@ class Config:
         try:
             with open('config.tmp', 'w') as f:
                 written = f.write(configJson)
-        except Exception:
+        except Exception as e:
+            # Most common cause: filesystem is read-only because the device
+            # booted with the thumb button held (host-drive mode). Saving
+            # requires booting without it held so boot.py remounts "/" writable.
+            print(f'Config save failed: {e}')
             return False
 
         if written > 0:
