@@ -4,6 +4,7 @@ import time
 class StickDeadzone:
     def __init__(self):
         self.deadzone = 0
+        self.baseDeadzone = 0
         self.upperBoundary = 0
         self.lowerBoundary = 0
         self.deadzoneBuffer = 1000
@@ -116,12 +117,14 @@ class StickDeadzone:
             biggestDiff = lowDiff
 
         self.deadzone = biggestDiff
+        self.baseDeadzone = biggestDiff
         self.originalDeadzoneMagnitude = largestMagnitude
         self.initBoundary()
 
     def initBoundary(self):
-        #self.deadzone = self.deadzone + self.deadzoneBuffer
-        self.deadzone = self.deadzone + 1000
+        # Recompute from the base so repeated calls (e.g. every setDeadzone
+        # command from the app) don't keep growing the deadzone.
+        self.deadzone = self.baseDeadzone + 1000
         #self.deadzoneMagnitude = self.originalDeadzoneMagnitude + 0.2
         self.deadzoneMagnitude = self.originalDeadzoneMagnitude + self.deadzoneBuffer
         self.upperBoundary = 32768 + self.deadzone

@@ -16,7 +16,9 @@ if thumbButton.value:
 
 usb_cdc.enable(console=True, data=True)
 
-# This is only one example of a gamepad descriptor, and may not suit your needs.
+# A conventional DirectInput-style gamepad descriptor: 16 buttons, an 8-way
+# hat (POV) switch, and two analog sticks (X/Y and Z/Rz). Keeping the layout
+# standard maximizes compatibility with Steam Input and other mapping layers.
 GAMEPAD_REPORT_DESCRIPTOR = bytes(
     (
         0x05,
@@ -27,6 +29,7 @@ GAMEPAD_REPORT_DESCRIPTOR = bytes(
         0x01,  # Collection (Application)
         0x85,
         0x04,  #   Report ID (4)
+        # 16 buttons
         0x05,
         0x09,  #   Usage Page (Button)
         0x19,
@@ -43,8 +46,36 @@ GAMEPAD_REPORT_DESCRIPTOR = bytes(
         0x10,  #   Report Count (16)
         0x81,
         0x02,  #   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+        # 8-way hat switch (1-8 clockwise from up, 0 = neutral/centered)
         0x05,
         0x01,  #   Usage Page (Generic Desktop Ctrls)
+        0x09,
+        0x39,  #   Usage (Hat switch)
+        0x15,
+        0x01,  #   Logical Minimum (1)
+        0x25,
+        0x08,  #   Logical Maximum (8)
+        0x35,
+        0x00,  #   Physical Minimum (0)
+        0x46,
+        0x3B,
+        0x01,  #   Physical Maximum (315)
+        0x65,
+        0x14,  #   Unit (System: English Rotation, Length: Centimeter)
+        0x75,
+        0x04,  #   Report Size (4)
+        0x95,
+        0x01,  #   Report Count (1)
+        0x81,
+        0x42,  #   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,Null Position)
+        # 4 bits of padding to byte-align the axes
+        0x75,
+        0x04,  #   Report Size (4)
+        0x95,
+        0x01,  #   Report Count (1)
+        0x81,
+        0x03,  #   Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+        # Two analog sticks: X/Y and Z/Rz
         0x15,
         0x81,  #   Logical Minimum (-127)
         0x25,
@@ -72,10 +103,12 @@ gamepad = usb_hid.Device(
     usage_page=0x01,  # Generic Desktop Control
     usage=0x05,  # Gamepad
     report_ids=(4,),  # Descriptor uses report ID 4.
-    in_report_lengths=(6,),  # This gamepad sends 6 bytes in its report.
+    in_report_lengths=(7,),  # This gamepad sends 7 bytes in its report.
     out_report_lengths=(0,),  # It does not receive any reports.
 )
 
+# List the gamepad first so host software classifies the device as a gamepad
+# rather than a keyboard that happens to have a gamepad attached.
 usb_hid.enable(
-    (usb_hid.Device.KEYBOARD, usb_hid.Device.CONSUMER_CONTROL, gamepad)
+    (gamepad, usb_hid.Device.KEYBOARD, usb_hid.Device.CONSUMER_CONTROL)
 )

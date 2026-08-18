@@ -253,8 +253,11 @@ class ProfileManager:
                     elif dpadName == "center":
                         profileToUpdate["dpad"]["center"] = value
                         success = True
-                elif valueName == "rgb" and len(value) == 6:
-                    rgb = tuple(int(value[i:i+2], 16) for i in (0, 2, 4))
+                elif valueName == "rgb" and isinstance(value, str) and len(value) == 6:
+                    try:
+                        rgb = tuple(int(value[i:i+2], 16) for i in (0, 2, 4))
+                    except ValueError:
+                        rgb = None
 
                     if rgb:
                         profileToUpdate["rgb"]["red"] = rgb[0]

@@ -36,8 +36,8 @@ class SerialHelper:
                     self.inBytes += readBytes
 
                     # Cap the buffer so endless garbage can't grow it forever.
-                    if len(self.inBytes) > 128:
-                        self.inBytes = self.inBytes[-128:]
+                    if len(self.inBytes) > 512:
+                        self.inBytes = self.inBytes[-512:]
 
             newlineIndex = self.inBytes.find(b'\n')
 
@@ -96,7 +96,7 @@ class SerialHelper:
                 elif "createNewProfile" in jsonData:
                     self.handleCreateNewProfile(jsonData)
                 elif "deleteProfile" in jsonData:
-                    self.handleDeleteProfile(jsonData)
+                    returnAction = self.handleDeleteProfile(jsonData)
                 elif "renameProfile" in jsonData:
                     self.handleRenameProfile(jsonData)
                 elif "setProfileValue" in jsonData:
@@ -200,12 +200,21 @@ class SerialHelper:
                 self.write("createNewProfile", result)
 
     def handleDeleteProfile(self, jsonData):
+        returnValue = None
+
         if jsonData and self.profileManager is not None:
             profileName = jsonData["deleteProfile"]
 
             if profileName:
                 result = self.profileManager.deleteProfile(profileName)
                 self.write("deleteProfile", result)
+
+                # The active profile may have moved or been deleted; have the
+                # main loop reload it so it isn't running a stale profile.
+                if result:
+                    returnValue = {"profileChange": True}
+
+        return returnValue
 
     def handleRenameProfile(self, jsonData):
         if jsonData and self.profileManager is not None:

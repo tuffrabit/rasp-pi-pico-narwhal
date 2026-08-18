@@ -6,6 +6,8 @@ class KbMode:
         self.yStartOffset = None
         self.yConeEnd = None
         self.keyboard = None
+        # Reused every call so the main loop doesn't allocate.
+        self.result = [False, False, False, False]
 
     def setXStartOffset(self, value):
         self.xStartOffset = value
@@ -20,13 +22,14 @@ class KbMode:
         self.keyboard = keyboard
 
     def calculateStickInput(self, stickValues):
-        up = False
-        down = False
-        left = False
-        right = False
+        result = self.result
+        result[0] = False
+        result[1] = False
+        result[2] = False
+        result[3] = False
 
         if self.xStartOffset is None or self.yStartOffset is None or self.yConeEnd is None:
-            return up, down, left, right
+            return result
 
         xStick = stickValues[0]
         yStick = stickValues[1]
@@ -38,17 +41,17 @@ class KbMode:
 
             if xStickAbs > extraOffset:
                 if xStick > 0:
-                    right = True
+                    result[3] = True
                 elif xStick < 0:
-                    left = True
+                    result[2] = True
 
         if yStickAbs > self.yStartOffset:
             if yStick > 0:
-                down = True
+                result[1] = True
             elif yStick < 0:
-                up = True
+                result[0] = True
 
-        return up, down, left, right
+        return result
 
     def handleKeyboundModeKey(self, key, isPressed):
         if isPressed:

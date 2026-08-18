@@ -22,6 +22,7 @@ from serialHelper import SerialHelper
 # ActionType: KEY = 1
 # ActionType: GAMEPAD = 2
 # ActionType: PROFILE = 3
+# ActionType: HAT = 4
 
 # Globals
 keyboard = Keyboard(usb_hid.devices)
@@ -148,11 +149,14 @@ def resolveStickOrientation():
 
     stickAxesOrientation = config.stickAxesOrientation
 
-    if "x" in stickAxesOrientation:
+    if not isinstance(stickAxesOrientation, dict):
+        return
+
+    if isinstance(stickAxesOrientation.get("x"), dict):
         stickXOrientationAxis = stickAxesOrientation["x"].get("axis", 0)
         stickXOrientationReverse = stickAxesOrientation["x"].get("reverse", False)
 
-    if "y" in stickAxesOrientation:
+    if isinstance(stickAxesOrientation.get("y"), dict):
         stickYOrientationAxis = stickAxesOrientation["y"].get("axis", 1)
         stickYOrientationReverse = stickAxesOrientation["y"].get("reverse", True)
 
@@ -237,6 +241,37 @@ def handleAction(stateIndex, trigger, action):
                     goToNextProfile = True
                 elif action["action"] == "previousProfile":
                     goToPreviousProfile = True
+        elif action["type"] == 4:
+            updateHat()
+
+def updateHat():
+    # Recompute the hat (POV) position from the dpad states. Intended to be
+    # called when a dpad direction bound to the "hat" action changes state.
+    up = actionStates["dpadUp"]
+    right = actionStates["dpadRight"]
+    down = actionStates["dpadDown"]
+    left = actionStates["dpadLeft"]
+
+    hatValue = 0
+
+    if up and not down:
+        hatValue = 1
+        if right and not left:
+            hatValue = 2
+        elif left and not right:
+            hatValue = 8
+    elif down and not up:
+        hatValue = 5
+        if right and not left:
+            hatValue = 4
+        elif left and not right:
+            hatValue = 6
+    elif right and not left:
+        hatValue = 3
+    elif left and not right:
+        hatValue = 7
+
+    gp.set_hat(hatValue)
 
 setRunValuesFromCurrentProfile()
 resolveStickOrientation()
@@ -330,6 +365,7 @@ while True:
             currentProfile = profile
             setRunValuesFromCurrentProfile()
             gp.release_all_buttons()
+            gp.set_hat(0)
             keyboard.release_all()
 
     if reloadCurrentProfile:
@@ -339,4 +375,5 @@ while True:
         if currentProfile != None:
             setRunValuesFromCurrentProfile()
             gp.release_all_buttons()
+            gp.set_hat(0)
             keyboard.release_all()

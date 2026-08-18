@@ -22,6 +22,9 @@ class ProfileHelper:
         if name == "nextProfile" or name == "previousProfile":
             action["type"] = 3
             action["action"] = name
+        elif name == "hat":
+            action["type"] = 4
+            action["action"] = name
         elif name.startswith("gamepadButton"):
             try:
                 buttonNumber = int(name[13:])

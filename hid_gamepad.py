@@ -16,12 +16,14 @@ from adafruit_hid import find_device
 
 class Gamepad:
     """Emulate a generic gamepad controller with 16 buttons,
-    numbered 1-16, and two joysticks, one controlling
-    ``x` and ``y`` values, and the other controlling ``z`` and
-    ``r_z`` (z rotation or ``Rz``) values.
+    numbered 1-16, an 8-way hat (POV) switch, and two joysticks,
+    one controlling ``x` and ``y`` values, and the other controlling
+    ``z`` and ``r_z`` (z rotation or ``Rz``) values.
     The joystick values could be interpreted
     differently by the receiving program: those are just the names used here.
-    The joystick values are in the range -127 to 127."""
+    The joystick values are in the range -127 to 127.
+    The hat values are in the range 0-8, where 1-8 are directions
+    clockwise from up and 0 is neutral/centered."""
 
     def __init__(self, devices):
         """Create a Gamepad object that will send USB gamepad HID reports.
@@ -31,23 +33,25 @@ class Gamepad:
         """
         self._gamepad_device = find_device(devices, usage_page=0x01, usage=0x05)
 
-        # Reuse this bytearray to send mouse reports.
+        # Reuse this bytearray to send gamepad reports.
         # Typically controllers start numbering buttons at 1 rather than 0.
         # report[0] buttons 1-8 (LSB is button 1)
         # report[1] buttons 9-16
-        # report[2] joystick 0 x: -127 to 127
-        # report[3] joystick 0 y: -127 to 127
-        # report[4] joystick 1 x: -127 to 127
-        # report[5] joystick 1 y: -127 to 127
-        self._report = bytearray(6)
+        # report[2] hat switch: 0 neutral, 1-8 clockwise from up
+        # report[3] joystick 0 x: -127 to 127
+        # report[4] joystick 0 y: -127 to 127
+        # report[5] joystick 1 x: -127 to 127
+        # report[6] joystick 1 y: -127 to 127
+        self._report = bytearray(7)
 
         # Remember the last report as well, so we can avoid sending
         # duplicate reports.
-        self._last_report = bytearray(6)
+        self._last_report = bytearray(7)
 
         # Store settings separately before putting into report. Saves code
         # especially for buttons.
         self._buttons_state = 0
+        self._hat = 0
         self._joy_x = 0
         self._joy_y = 0
         self._joy_z = 0
@@ -107,9 +111,17 @@ class Gamepad:
             self._joy_r_z = self._validate_joystick_value(r_z)
         self._send()
 
+    def set_hat(self, value):
+        """Set and send the hat (POV) switch position.
+        ``value`` must be in the range 0-8: 1-8 are directions
+        clockwise from up (1=up, 3=right, 5=down, 7=left), 0 is neutral."""
+        self._hat = self._validate_hat_value(value)
+        self._send()
+
     def reset_all(self):
-        """Release all buttons and set joysticks to zero."""
+        """Release all buttons, center the hat, and set joysticks to zero."""
         self._buttons_state = 0
+        self._hat = 0
         self._joy_x = 0
         self._joy_y = 0
         self._joy_z = 0
@@ -121,10 +133,11 @@ class Gamepad:
         If ``always`` is ``False`` (the default), send only if there have been changes.
         """
         struct.pack_into(
-            "<Hbbbb",
+            "<HBbbbb",
             self._report,
             0,
             self._buttons_state,
+            self._hat,
             self._joy_x,
             self._joy_y,
             self._joy_z,
@@ -141,6 +154,12 @@ class Gamepad:
         if not 1 <= button <= 16:
             raise ValueError("Button number must in range 1 to 16")
         return button
+
+    @staticmethod
+    def _validate_hat_value(value):
+        if not 0 <= value <= 8:
+            raise ValueError("Hat value must be in range 0 to 8")
+        return value
 
     @staticmethod
     def _validate_joystick_value(value):
