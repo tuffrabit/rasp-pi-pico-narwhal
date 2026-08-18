@@ -79,6 +79,11 @@ class SerialHelper:
             except ValueError:
                 print(f'Invalid JSON received: {serialOut}')
 
+            # The app sends value-less commands as single-element arrays
+            # (e.g. ["getProfiles"]); normalize them to dict form.
+            if isinstance(jsonData, list) and len(jsonData) == 1 and isinstance(jsonData[0], str):
+                jsonData = {jsonData[0]: True}
+
             if jsonData and isinstance(jsonData, dict):
                 if "ping" not in serialOut:
                     print(f'jsonData: {jsonData}')
