@@ -208,7 +208,10 @@ class ProfileManager:
                     if keyIndex.isdigit():
                         keyIndex = int(keyIndex)
 
-                        if keyIndex > -1 and keyIndex < 20:
+                        # Guard the nested structure so a profile without a
+                        # key list (or a short one) rejects instead of
+                        # crashing the dispatcher.
+                        if isinstance(profileToUpdate.get("keys"), list) and keyIndex > -1 and keyIndex < len(profileToUpdate["keys"]):
                             profileToUpdate["keys"][keyIndex] = value
                             success = True
                 elif valueName == "thumbButton":
@@ -220,7 +223,7 @@ class ProfileManager:
                 elif valueName == "isKbModeEnabled":
                     profileToUpdate["isKbModeEnabled"] = value
                     success = True
-                elif valueName.startswith("kb"):
+                elif valueName.startswith("kb") and isinstance(profileToUpdate.get("kbMode"), dict):
                     kbName = valueName[2::]
 
                     if kbName == "up":
@@ -235,7 +238,7 @@ class ProfileManager:
                     elif kbName == "right":
                         profileToUpdate["kbMode"]["right"] = value
                         success = True
-                elif valueName.startswith("dpad"):
+                elif valueName.startswith("dpad") and isinstance(profileToUpdate.get("dpad"), dict):
                     dpadName = valueName[4::]
 
                     if dpadName == "up":
@@ -253,7 +256,7 @@ class ProfileManager:
                     elif dpadName == "center":
                         profileToUpdate["dpad"]["center"] = value
                         success = True
-                elif valueName == "rgb" and isinstance(value, str) and len(value) == 6:
+                elif valueName == "rgb" and isinstance(profileToUpdate.get("rgb"), dict) and isinstance(value, str) and len(value) == 6:
                     try:
                         rgb = tuple(int(value[i:i+2], 16) for i in (0, 2, 4))
                     except ValueError:

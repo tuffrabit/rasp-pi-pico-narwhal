@@ -1,9 +1,44 @@
 import usb_cdc
 import json
 
+# A single inbound command line may be at most this many bytes. Once a line
+# exceeds the limit its bytes are discarded through its next newline so the
+# tail of an oversized line can never merge with the next valid command.
+MAX_COMMAND_LENGTH = 512
+
+def _isNonEmptyString(value):
+    return isinstance(value, str) and len(value) > 0
+
+def _getIntegerCompatibleValue(value):
+    # Matches what ProfileManager.reorderProfile() already accepts through
+    # int(): real integers, integer-valued floats, and integer strings.
+    # Booleans are rejected so True can never become position 1.
+    if isinstance(value, bool):
+        return None
+
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, float):
+        number = int(value)
+
+        if number != value:
+            return None
+
+        return number
+
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    return None
+
 class SerialHelper:
     def __init__(self):
         self.inBytes = bytearray()
+        self.discardThroughNewline = False
         self.config = None
         self.profileManager = None
         self.stick = None
@@ -25,6 +60,31 @@ class SerialHelper:
     def setKbMode(self, kbMode):
         self.kbMode = kbMode
 
+    def _appendIncomingBytes(self, readBytes):
+        if self.discardThroughNewline:
+            newlineIndex = readBytes.find(b'\n')
+
+            if newlineIndex == -1:
+                # Still inside the oversized line; keep discarding.
+                return
+
+            # The oversized line ends inside this chunk; drop it and resume
+            # normal buffering with the bytes that follow its newline.
+            readBytes = readBytes[newlineIndex + 1:]
+            self.discardThroughNewline = False
+
+            if not readBytes:
+                return
+
+        self.inBytes += readBytes
+
+        # A valid line is at most MAX_COMMAND_LENGTH bytes before its
+        # newline. If no newline has arrived by then, the line can never be
+        # valid: discard everything through its next newline.
+        if self.inBytes.find(b'\n') == -1 and len(self.inBytes) > MAX_COMMAND_LENGTH:
+            self.inBytes = bytearray()
+            self.discardThroughNewline = True
+
     def read(self):
         out = None
 
@@ -33,24 +93,28 @@ class SerialHelper:
                 readBytes = usb_cdc.data.read(usb_cdc.data.in_waiting)
 
                 if readBytes:
-                    self.inBytes += readBytes
-
-                    # Cap the buffer so endless garbage can't grow it forever.
-                    if len(self.inBytes) > 512:
-                        self.inBytes = self.inBytes[-512:]
+                    self._appendIncomingBytes(readBytes)
 
             newlineIndex = self.inBytes.find(b'\n')
 
             if newlineIndex > -1:
-                try:
-                    out = self.inBytes[:newlineIndex].decode("utf-8")
-                except UnicodeError:
-                    out = ""
+                if newlineIndex > MAX_COMMAND_LENGTH:
+                    # The line exceeds the command limit. Discard it
+                    # entirely; its tail must never combine with the next
+                    # command. The next valid line, if any, is picked up on
+                    # a later read so one iteration still handles at most
+                    # one complete inbound command.
+                    self.inBytes = self.inBytes[newlineIndex + 1:]
+                else:
+                    try:
+                        out = self.inBytes[:newlineIndex].decode("utf-8")
+                    except UnicodeError:
+                        out = ""
 
-                self.inBytes = self.inBytes[newlineIndex + 1:]
+                    self.inBytes = self.inBytes[newlineIndex + 1:]
 
-                if "ping" not in out:
-                    print(f'Serial In: {out}')
+                    if "ping" not in out:
+                        print(f'Serial In: {out}')
 
         return out
 
@@ -153,96 +217,113 @@ class SerialHelper:
             )
 
     def handleGetProfiles(self):
+        # Always respond, even with an empty list, so the management app
+        # never waits on a silently dropped query.
         if self.profileManager is not None:
-            profileNames = self.profileManager.getProfileNames()
-
-            if profileNames:
-                self.write("getProfiles", profileNames)
+            self.write("getProfiles", self.profileManager.getProfileNames())
 
     def handleGetActiveProfile(self):
         if self.profileManager is not None:
             currentProfile = self.profileManager.getCurrentProfile()
+            profileName = None
 
-            if currentProfile:
-                self.write("getActiveProfile", currentProfile["name"])
+            if isinstance(currentProfile, dict):
+                profileName = currentProfile.get("name")
+
+            self.write("getActiveProfile", profileName)
 
     def handleSetActiveProfile(self, jsonData):
         success = False
         returnValue = None
+        profileName = jsonData["setActiveProfile"]
 
-        if jsonData and self.profileManager is not None:
-            newIndex = None
-
-            for index, profile in enumerate(self.config.profiles):
-                if profile and "name" in profile and profile["name"] == jsonData["setActiveProfile"]:
-                    newIndex = index
-                    break
+        if self.profileManager is not None and _isNonEmptyString(profileName):
+            newIndex = self.profileManager.getProfileIndexByName(profileName)
 
             if newIndex is not None:
                 profile = self.profileManager.getProfileByIndex(newIndex)
-                returnValue = {"profileChange": True}
 
-                if profile:
+                if profile is not None:
                     success = True
+
+        if success:
+            returnValue = {"profileChange": True}
 
         self.write("setActiveProfile", success)
         return returnValue
 
     def handleGetProfile(self, jsonData):
-        if jsonData and self.profileManager is not None:
+        if self.profileManager is not None:
             profileName = jsonData["getProfile"]
-            profile = self.profileManager.getProfileByName(profileName)
+            profile = None
 
-            if profile:
-                self.write("getProfile", profile)
+            if _isNonEmptyString(profileName):
+                foundProfile = self.profileManager.getProfileByName(profileName)
+
+                if foundProfile is not None:
+                    profile = foundProfile
+
+            self.write("getProfile", profile)
 
     def handleCreateNewProfile(self, jsonData):
-        if jsonData and self.profileManager is not None:
-            newProfileName = jsonData["createNewProfile"]
+        result = False
+        newProfileName = jsonData["createNewProfile"]
 
-            if newProfileName:
-                result = self.profileManager.createNewProfile(newProfileName)
-                self.write("createNewProfile", result)
+        if self.profileManager is not None and _isNonEmptyString(newProfileName):
+            result = self.profileManager.createNewProfile(newProfileName)
+
+        self.write("createNewProfile", result)
 
     def handleDeleteProfile(self, jsonData):
         returnValue = None
+        result = False
+        profileName = jsonData["deleteProfile"]
 
-        if jsonData and self.profileManager is not None:
-            profileName = jsonData["deleteProfile"]
+        if self.profileManager is not None and _isNonEmptyString(profileName):
+            result = self.profileManager.deleteProfile(profileName)
 
-            if profileName:
-                result = self.profileManager.deleteProfile(profileName)
-                self.write("deleteProfile", result)
-
+            if result:
                 # The active profile may have moved or been deleted; have the
                 # main loop reload it so it isn't running a stale profile.
-                if result:
-                    returnValue = {"profileChange": True}
+                returnValue = {"profileChange": True}
 
+        self.write("deleteProfile", result)
         return returnValue
 
     def handleRenameProfile(self, jsonData):
-        if jsonData and self.profileManager is not None:
-            newProfileName = jsonData["renameProfile"]["newProfileName"]
-            oldProfileName = jsonData["renameProfile"]["oldProfileName"]
+        result = False
+        payload = jsonData["renameProfile"]
 
-            if newProfileName and oldProfileName:
+        if self.profileManager is not None and isinstance(payload, dict):
+            oldProfileName = payload.get("oldProfileName")
+            newProfileName = payload.get("newProfileName")
+
+            if _isNonEmptyString(oldProfileName) and _isNonEmptyString(newProfileName):
                 result = self.profileManager.renameProfile(newProfileName, oldProfileName)
-                self.write("renameProfile", result)
+
+        self.write("renameProfile", result)
 
     def handleSetProfileValue(self, jsonData):
+        # Request a runtime profile reload only when the mutation succeeded;
+        # a rejected value must leave the running profile untouched.
         returnValue = None
+        result = False
+        payload = jsonData["setProfileValue"]
 
-        if jsonData and self.profileManager is not None:
-            profileName = jsonData["setProfileValue"]["profile"]
-            valueName = jsonData["setProfileValue"]["valueName"]
-            value = jsonData["setProfileValue"]["value"]
+        if self.profileManager is not None and isinstance(payload, dict):
+            profileName = payload.get("profile")
+            valueName = payload.get("valueName")
 
-            if profileName and valueName and value is not None:
-                result = self.profileManager.setProfileValue(profileName, valueName, value)
-                returnValue = {"profileChange": True}
-                self.write("setProfileValue", result)
+            if "value" in payload:
+                value = payload["value"]
 
+                if isinstance(profileName, str) and isinstance(valueName, str) and value is not None:
+                    result = self.profileManager.setProfileValue(profileName, valueName, value)
+
+        if result:
+            returnValue = {"profileChange": True}
+
+        self.write("setProfileValue", result)
         return returnValue
 
     def handlePing(self):
@@ -262,11 +343,14 @@ class SerialHelper:
     def handleSetStickXHigh(self, jsonData):
         result = False
 
-        if jsonData and self.config is not None:
-            value = jsonData["setStickXHigh"]
-            result = self.config.setStickXHigh(value)
+        if self.config is not None:
+            result = self.config.setStickXHigh(jsonData["setStickXHigh"])
 
             if result:
+                # Propagate the validated stored value, not the raw payload,
+                # so runtime objects never see an unconverted string.
+                value = self.config.stickBoundaries["highX"]
+
                 if self.stickDeadzone is not None:
                     self.stickDeadzone.setXHigh(value)
 
@@ -278,11 +362,12 @@ class SerialHelper:
     def handleSetStickXLow(self, jsonData):
         result = False
 
-        if jsonData and self.config is not None:
-            value = jsonData["setStickXLow"]
-            result = self.config.setStickXLow(value)
+        if self.config is not None:
+            result = self.config.setStickXLow(jsonData["setStickXLow"])
 
             if result:
+                value = self.config.stickBoundaries["lowX"]
+
                 if self.stickDeadzone is not None:
                     self.stickDeadzone.setXLow(value)
 
@@ -294,11 +379,12 @@ class SerialHelper:
     def handleSetStickYHigh(self, jsonData):
         result = False
 
-        if jsonData and self.config is not None:
-            value = jsonData["setStickYHigh"]
-            result = self.config.setStickYHigh(value)
+        if self.config is not None:
+            result = self.config.setStickYHigh(jsonData["setStickYHigh"])
 
             if result:
+                value = self.config.stickBoundaries["highY"]
+
                 if self.stickDeadzone is not None:
                     self.stickDeadzone.setYHigh(value)
 
@@ -310,11 +396,12 @@ class SerialHelper:
     def handleSetStickYLow(self, jsonData):
         result = False
 
-        if jsonData and self.config is not None:
-            value = jsonData["setStickYLow"]
-            result = self.config.setStickYLow(value)
+        if self.config is not None:
+            result = self.config.setStickYLow(jsonData["setStickYLow"])
 
             if result:
+                value = self.config.stickBoundaries["lowY"]
+
                 if self.stickDeadzone is not None:
                     self.stickDeadzone.setYLow(value)
 
@@ -326,7 +413,7 @@ class SerialHelper:
     def handleSetStickXOrientation(self, jsonData):
         returnValue = None
 
-        if jsonData and self.config is not None:
+        if self.config is not None:
             result = self.config.setStickXOrientation(jsonData["setStickXOrientation"])
             self.write("setStickXOrientation", result)
 
@@ -338,7 +425,7 @@ class SerialHelper:
     def handleSetStickYOrientation(self, jsonData):
         returnValue = None
 
-        if jsonData and self.config is not None:
+        if self.config is not None:
             result = self.config.setStickYOrientation(jsonData["setStickYOrientation"])
             self.write("setStickYOrientation", result)
 
@@ -350,54 +437,66 @@ class SerialHelper:
     def handleSetDeadzone(self, jsonData):
         result = False
 
-        if jsonData and self.config is not None:
-            value = jsonData["setDeadzone"]
-            result = self.config.setDeadzoneSize(value)
+        if self.config is not None:
+            result = self.config.setDeadzoneSize(jsonData["setDeadzone"])
 
             if result:
-                self.stickDeadzone.setDeadzoneBuffer(value)
-                self.stickDeadzone.initBoundary()
-                self.stick.setDeadzone(self.stickDeadzone)
+                value = self.config.deadzoneSize
 
-            self.write("setDeadzone", result)
+                if self.stickDeadzone is not None:
+                    self.stickDeadzone.setDeadzoneBuffer(value)
+                    self.stickDeadzone.initBoundary()
+
+                if self.stick is not None:
+                    self.stick.setDeadzone(self.stickDeadzone)
+
+        self.write("setDeadzone", result)
 
     def handleSetKbModeXStartOffset(self, jsonData):
         result = False
 
-        if jsonData and self.config is not None and self.kbMode is not None:
+        if self.config is not None and self.kbMode is not None:
             result = self.config.setKbModeXOffset(jsonData["setKbModeXStartOffset"])
 
             if result:
                 self.kbMode.setXStartOffset(self.config.kbModeOffsets["x"])
 
-            self.write("setKbModeXStartOffset", result)
+        self.write("setKbModeXStartOffset", result)
 
     def handleSetKbModeYStartOffset(self, jsonData):
         result = False
 
-        if jsonData and self.config is not None and self.kbMode is not None:
+        if self.config is not None and self.kbMode is not None:
             result = self.config.setKbModeYOffset(jsonData["setKbModeYStartOffset"])
 
             if result:
                 self.kbMode.setYStartOffset(self.config.kbModeOffsets["y"])
 
-            self.write("setKbModeYStartOffset", result)
+        self.write("setKbModeYStartOffset", result)
 
     def handleSetKbModeYConeEnd(self, jsonData):
         result = False
 
-        if jsonData and self.config is not None and self.kbMode is not None:
+        if self.config is not None and self.kbMode is not None:
             result = self.config.setKbModeYConeEnd(jsonData["setKbModeYConeEnd"])
 
             if result:
                 self.kbMode.setYConeEnd(self.config.kbModeYConeEnd)
 
-            self.write("setKbModeYConeEnd", result)
+        self.write("setKbModeYConeEnd", result)
 
     def handleReadStickValues(self):
         return {"readStickValues": True}
 
     def handleReorderProfile(self, jsonData):
-        if jsonData and self.config is not None and self.profileManager is not None:
-            result = self.profileManager.reorderProfile(jsonData["reorderProfile"]["profileName"], jsonData["reorderProfile"]["position"])
-            self.write("reorderProfile", result)
+        result = False
+        payload = jsonData["reorderProfile"]
+
+        if self.profileManager is not None and isinstance(payload, dict):
+            profileName = payload.get("profileName")
+            position = _getIntegerCompatibleValue(payload.get("position"))
+
+            if _isNonEmptyString(profileName) and position is not None:
+                result = self.profileManager.reorderProfile(profileName, position)
+
+        self.write("reorderProfile", result)
