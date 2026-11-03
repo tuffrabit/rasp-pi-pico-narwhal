@@ -6,6 +6,14 @@ STICK_VALUE_MAX = 65535
 KB_MODE_VALUE_MIN = 1
 KB_MODE_VALUE_MAX = 127
 
+# Profile lifecycle limits.
+MAX_PROFILE_COUNT = 32
+MAX_PROFILE_NAME_BYTES = 64
+
+# TuFFpad matrix layout: exactly 20 keys. Waveshare has no matrix and does
+# not apply this limit.
+MAX_PROFILE_KEY_COUNT = 20
+
 def magnitude(x, y):
     return math.sqrt(x * x + y * y)
 
@@ -19,6 +27,17 @@ def constrain(x, a, b):
 
 def rangeMap(x, inMin, inMax, outMin, outMax):
     return (x - inMin) * (outMax - outMin) / (inMax - inMin) + outMin
+
+def getProfileNameValue(value):
+    # Profile names must be non-empty strings within the UTF-8 byte limit so
+    # stored names stay unambiguous for management-app lookups.
+    if not isinstance(value, str) or len(value) == 0:
+        return None
+
+    if len(value.encode("utf-8")) > MAX_PROFILE_NAME_BYTES:
+        return None
+
+    return value
 
 def getIntValue(value, minValue, maxValue):
     # Accept real integers, integer-valued floats, and integer strings.

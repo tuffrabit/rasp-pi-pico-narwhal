@@ -1,3 +1,5 @@
+import stickCommon as sc
+
 class ProfileManager:
     def __init__(self):
         self.config = None
@@ -95,60 +97,86 @@ class ProfileManager:
         return names
 
     def createNewProfile(self, newProfileName):
-        success = False
+        if self.config is None:
+            return False
 
-        if newProfileName and self.config:
-            newProfile = self.config.getDefaultProfileData(newProfileName)
+        name = sc.getProfileNameValue(newProfileName)
 
-            if newProfile:
-                self.config.profiles.append(newProfile)
-                success = True
+        if name is None:
+            return False
 
-        return success
+        if len(self.config.profiles) >= sc.MAX_PROFILE_COUNT:
+            return False
+
+        if self.getProfileIndexByName(name) is not None:
+            return False
+
+        self.config.profiles.append(self.config.getDefaultProfileData(name))
+        return True
 
     def deleteProfile(self, profileName):
-        success = False
+        if not isinstance(profileName, str) or self.config is None:
+            return False
 
-        if profileName and self.config:
-            indexToRemove = None
+        # The final profile can never be deleted; the device must always
+        # have a valid profile to run.
+        if len(self.config.profiles) <= 1:
+            return False
 
-            for index, profile in enumerate(self.config.profiles):
-                if profile["name"] == profileName:
-                    indexToRemove = index
-                    break
+        indexToRemove = None
 
-            if indexToRemove != None:
-                del self.config.profiles[indexToRemove]
-                success = True
+        for index, profile in enumerate(self.config.profiles):
+            if isinstance(profile, dict) and profile.get("name") == profileName:
+                indexToRemove = index
+                break
 
-                # Keep the active-profile pointer consistent with the list.
-                if self.currentProfileIndex != None:
-                    if self.currentProfileIndex > indexToRemove:
-                        self.currentProfileIndex -= 1
-                    elif self.currentProfileIndex == indexToRemove:
-                        if len(self.config.profiles) == 0:
-                            self.currentProfileIndex = None
-                        elif self.currentProfileIndex >= len(self.config.profiles):
-                            self.currentProfileIndex = len(self.config.profiles) - 1
+        if indexToRemove is None:
+            return False
+
+        del self.config.profiles[indexToRemove]
+        success = True
+
+        # Keep the active-profile pointer consistent with the list.
+        if self.currentProfileIndex != None:
+            if self.currentProfileIndex > indexToRemove:
+                self.currentProfileIndex -= 1
+            elif self.currentProfileIndex == indexToRemove:
+                if len(self.config.profiles) == 0:
+                    self.currentProfileIndex = None
+                elif self.currentProfileIndex >= len(self.config.profiles):
+                    self.currentProfileIndex = len(self.config.profiles) - 1
 
         return success
 
     def renameProfile(self, newProfileName, oldProfileName):
-        success = False
+        if not isinstance(oldProfileName, str) or self.config is None:
+            return False
 
-        if newProfileName and oldProfileName and self.config:
-            indexToRename = None
+        newName = sc.getProfileNameValue(newProfileName)
 
-            for index, profile in enumerate(self.config.profiles):
-                if profile["name"] == oldProfileName:
-                    indexToRename = index
-                    break
+        if newName is None:
+            return False
 
-            if indexToRename != None:
-                self.config.profiles[indexToRename]["name"] = newProfileName
-                success = True
+        indexToRename = None
 
-        return success
+        for index, profile in enumerate(self.config.profiles):
+            if isinstance(profile, dict) and profile.get("name") == oldProfileName:
+                indexToRename = index
+                break
+
+        if indexToRename is None:
+            return False
+
+        # Renaming to the current name is a no-op success: no order, name,
+        # or runtime change.
+        if self.config.profiles[indexToRename]["name"] == newName:
+            return True
+
+        if self.getProfileIndexByName(newName) is not None:
+            return False
+
+        self.config.profiles[indexToRename]["name"] = newName
+        return True
 
     def reorderProfile(self, profileName, newIndex):
         if not profileName or self.config is None:
@@ -191,69 +219,70 @@ class ProfileManager:
     def setProfileValue(self, profileName, valueName, value):
         success = False
 
-        if profileName and valueName and value is not None and self.config and isinstance(profileName, str) and isinstance(valueName, str):
+        if self.config and isinstance(profileName, str) and isinstance(valueName, str) and value is not None:
             profileToUpdate = None
-            profileIndexToUpdate = None
 
-            for index, profile in enumerate(self.config.profiles):
-                if profile["name"] == profileName:
+            for profile in self.config.profiles:
+                if isinstance(profile, dict) and profile.get("name") == profileName:
                     profileToUpdate = profile
-                    profileIndexToUpdate = index
                     break
 
-            if profileToUpdate and profileIndexToUpdate is not None:
+            if profileToUpdate is not None:
                 if valueName.startswith("key"):
                     keyIndex = valueName[3::]
 
-                    if keyIndex.isdigit():
+                    # Binding values must be strings; key indices are 0-19
+                    # and must exist in the actual key list so no slot can be
+                    # created past the matrix layout.
+                    if isinstance(value, str) and keyIndex.isdigit():
                         keyIndex = int(keyIndex)
 
-                        # Guard the nested structure so a profile without a
-                        # key list (or a short one) rejects instead of
-                        # crashing the dispatcher.
-                        if isinstance(profileToUpdate.get("keys"), list) and keyIndex > -1 and keyIndex < len(profileToUpdate["keys"]):
+                        if isinstance(profileToUpdate.get("keys"), list) and keyIndex > -1 and keyIndex < sc.MAX_PROFILE_KEY_COUNT and keyIndex < len(profileToUpdate["keys"]):
                             profileToUpdate["keys"][keyIndex] = value
                             success = True
                 elif valueName == "thumbButton":
-                    profileToUpdate["thumbButton"] = value
-                    success = True
+                    if isinstance(value, str):
+                        profileToUpdate["thumbButton"] = value
+                        success = True
                 elif valueName == "joystickButton":
-                    profileToUpdate["joystickButton"] = value
-                    success = True
+                    if isinstance(value, str):
+                        profileToUpdate["joystickButton"] = value
+                        success = True
                 elif valueName == "isKbModeEnabled":
-                    profileToUpdate["isKbModeEnabled"] = value
-                    success = True
+                    if isinstance(value, bool):
+                        profileToUpdate["isKbModeEnabled"] = value
+                        success = True
                 elif valueName.startswith("kb") and isinstance(profileToUpdate.get("kbMode"), dict):
                     kbName = valueName[2::]
 
-                    if kbName == "up":
+                    if isinstance(value, str) and kbName == "up":
                         profileToUpdate["kbMode"]["up"] = value
                         success = True
-                    elif kbName == "down":
+                    elif isinstance(value, str) and kbName == "down":
                         profileToUpdate["kbMode"]["down"] = value
                         success = True
-                    elif kbName == "left":
+                    elif isinstance(value, str) and kbName == "left":
                         profileToUpdate["kbMode"]["left"] = value
                         success = True
-                    elif kbName == "right":
+                    elif isinstance(value, str) and kbName == "right":
                         profileToUpdate["kbMode"]["right"] = value
                         success = True
                 elif valueName.startswith("dpad") and isinstance(profileToUpdate.get("dpad"), dict):
                     dpadName = valueName[4::]
 
-                    if dpadName == "up":
+                    if isinstance(value, str) and dpadName == "up":
                         profileToUpdate["dpad"]["up"] = value
                         success = True
-                    elif dpadName == "down":
+                    elif isinstance(value, str) and dpadName == "down":
                         profileToUpdate["dpad"]["down"] = value
                         success = True
-                    elif dpadName == "left":
+                    elif isinstance(value, str) and dpadName == "left":
                         profileToUpdate["dpad"]["left"] = value
                         success = True
-                    elif dpadName == "right":
+                    elif isinstance(value, str) and dpadName == "right":
                         profileToUpdate["dpad"]["right"] = value
                         success = True
-                    elif dpadName == "center":
+                    elif isinstance(value, str) and dpadName == "center":
                         profileToUpdate["dpad"]["center"] = value
                         success = True
                 elif valueName == "rgb" and isinstance(profileToUpdate.get("rgb"), dict) and isinstance(value, str) and len(value) == 6:

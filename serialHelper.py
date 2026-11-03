@@ -320,8 +320,13 @@ class SerialHelper:
                 if isinstance(profileName, str) and isinstance(valueName, str) and value is not None:
                     result = self.profileManager.setProfileValue(profileName, valueName, value)
 
-        if result:
-            returnValue = {"profileChange": True}
+        if result and self.profileManager is not None:
+            # Editing an inactive profile needs no runtime rebuild; only a
+            # successful edit of the active profile reloads live bindings.
+            currentProfile = self.profileManager.getCurrentProfile()
+
+            if isinstance(currentProfile, dict) and currentProfile.get("name") == profileName:
+                returnValue = {"profileChange": True}
 
         self.write("setProfileValue", result)
         return returnValue

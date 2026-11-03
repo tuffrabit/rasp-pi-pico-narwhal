@@ -2,6 +2,10 @@ import stickCommon as sc
 import json
 import os
 
+_PROFILE_KB_MODE_DIRECTIONS = ("up", "down", "left", "right")
+_PROFILE_DPAD_DIRECTIONS = ("up", "down", "left", "right", "center")
+_PROFILE_RGB_CHANNELS = ("red", "green", "blue")
+
 class Config:
     def __init__(self):
         self.stickBoundaries = {
@@ -161,6 +165,108 @@ class Config:
         self.kbModeYConeEnd = value
         return True
 
+    def _normalizeDirectionBindings(self, defaultBindings, rawBindings, directions):
+        # Each direction keeps its default unless the stored value is a valid
+        # string binding; unknown nested fields are retained verbatim for
+        # forward compatibility.
+        bindings = dict(defaultBindings)
+
+        if isinstance(rawBindings, dict):
+            for direction in directions:
+                if direction in rawBindings and isinstance(rawBindings[direction], str):
+                    bindings[direction] = rawBindings[direction]
+
+            for key in rawBindings:
+                if key not in bindings:
+                    bindings[key] = rawBindings[key]
+
+        return bindings
+
+    def _normalizeRgb(self, defaultRgb, rawRgb):
+        rgb = dict(defaultRgb)
+
+        if isinstance(rawRgb, dict):
+            for channel in _PROFILE_RGB_CHANNELS:
+                if channel in rawRgb:
+                    value = sc.getIntValue(rawRgb[channel], 0, 255)
+
+                    if value is not None:
+                        rgb[channel] = value
+
+            for key in rawRgb:
+                if key not in rgb:
+                    rgb[key] = rawRgb[key]
+
+        return rgb
+
+    def _normalizeProfile(self, rawProfile, usedNames):
+        # Build each accepted profile from a fresh default so malformed stored
+        # data can never leave a known field missing or wrongly typed. Names
+        # must be valid and unique; duplicates after the first are skipped.
+        if not isinstance(rawProfile, dict):
+            return None
+
+        name = sc.getProfileNameValue(rawProfile.get("name"))
+
+        if name is None or name in usedNames:
+            return None
+
+        profile = self.getDefaultProfileData(name)
+
+        rawKeys = rawProfile.get("keys")
+
+        if isinstance(rawKeys, list) and len(rawKeys) == sc.MAX_PROFILE_KEY_COUNT:
+            keysAreValid = True
+
+            for keyId in rawKeys:
+                if not isinstance(keyId, str):
+                    keysAreValid = False
+                    break
+
+            if keysAreValid:
+                profile["keys"] = list(rawKeys)
+
+        if isinstance(rawProfile.get("thumbButton"), str):
+            profile["thumbButton"] = rawProfile["thumbButton"]
+
+        if isinstance(rawProfile.get("joystickButton"), str):
+            profile["joystickButton"] = rawProfile["joystickButton"]
+
+        if isinstance(rawProfile.get("isKbModeEnabled"), bool):
+            profile["isKbModeEnabled"] = rawProfile["isKbModeEnabled"]
+
+        profile["kbMode"] = self._normalizeDirectionBindings(profile["kbMode"], rawProfile.get("kbMode"), _PROFILE_KB_MODE_DIRECTIONS)
+        profile["dpad"] = self._normalizeDirectionBindings(profile["dpad"], rawProfile.get("dpad"), _PROFILE_DPAD_DIRECTIONS)
+        profile["rgb"] = self._normalizeRgb(profile["rgb"], rawProfile.get("rgb"))
+
+        # Retain unknown top-level fields for forward compatibility.
+        for key in rawProfile:
+            if key not in profile:
+                profile[key] = rawProfile[key]
+
+        return profile
+
+    def _normalizeProfiles(self, rawProfiles):
+        normalizedProfiles = []
+        usedNames = set()
+
+        if isinstance(rawProfiles, list):
+            for rawProfile in rawProfiles:
+                if len(normalizedProfiles) >= sc.MAX_PROFILE_COUNT:
+                    break
+
+                profile = self._normalizeProfile(rawProfile, usedNames)
+
+                if profile is not None:
+                    usedNames.add(profile["name"])
+                    normalizedProfiles.append(profile)
+
+        # There is always at least one valid profile to run.
+        if len(normalizedProfiles) == 0:
+            normalizedProfiles = [self.getDefaultProfileData("1")]
+
+        return normalizedProfiles
+
     def loadFromFile(self):
         configData = None
 
@@ -208,12 +314,10 @@ class Config:
         if "kbModeYConeEnd" in configData:
             self.setKbModeYConeEnd(configData["kbModeYConeEnd"])
 
-        # Profile normalization arrives in a later phase; for now only a
-        # list replaces the defaults so other shapes can't crash startup.
         profiles = configData.get("profiles")
 
         if isinstance(profiles, list):
-            self.profiles = profiles
+            self.profiles = self._normalizeProfiles(profiles)
 
     def saveToFile(self):
         configData = {
