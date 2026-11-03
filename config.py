@@ -79,75 +79,87 @@ class Config:
             }
         }
 
-    def setStickXLow(self, value):
-        value = sc.getStickValue(value)
+    def _setStickBoundary(self, key, value):
+        boundaries = self.stickBoundaries
 
-        if value is not None:
-            self.stickBoundaries["lowX"] = value
+        if key == "lowX":
+            candidate = sc.getBoundaryValue(value, boundaries["highX"], True)
+        elif key == "highX":
+            candidate = sc.getBoundaryValue(value, boundaries["lowX"], False)
+        elif key == "lowY":
+            candidate = sc.getBoundaryValue(value, boundaries["highY"], True)
+        else:
+            candidate = sc.getBoundaryValue(value, boundaries["lowY"], False)
+
+        if candidate is None:
+            return False
+
+        boundaries[key] = candidate
+        return True
+
+    def setStickXLow(self, value):
+        return self._setStickBoundary("lowX", value)
 
     def setStickXHigh(self, value):
-        value = sc.getStickValue(value)
-
-        if value is not None:
-            self.stickBoundaries["highX"] = value
+        return self._setStickBoundary("highX", value)
 
     def setStickYLow(self, value):
-        value = sc.getStickValue(value)
-
-        if value is not None:
-            self.stickBoundaries["lowY"] = value
+        return self._setStickBoundary("lowY", value)
 
     def setStickYHigh(self, value):
-        value = sc.getStickValue(value)
+        return self._setStickBoundary("highY", value)
 
-        if value is not None:
-            self.stickBoundaries["highY"] = value
+    def _setStickOrientation(self, axisKey, value):
+        orientation = sc.getOrientationValue(value)
+
+        if orientation is None:
+            return False
+
+        self.stickAxesOrientation[axisKey]["axis"] = orientation["axis"]
+        self.stickAxesOrientation[axisKey]["reverse"] = orientation["reverse"]
+        return True
 
     def setStickXOrientation(self, value):
-        try:
-            self.stickAxesOrientation["x"]["axis"] = int(value["axis"])
-            self.stickAxesOrientation["x"]["reverse"] = bool(value["reverse"])
-        except (TypeError, ValueError, KeyError):
-            pass
+        return self._setStickOrientation("x", value)
 
     def setStickYOrientation(self, value):
-        try:
-            self.stickAxesOrientation["y"]["axis"] = int(value["axis"])
-            self.stickAxesOrientation["y"]["reverse"] = bool(value["reverse"])
-        except (TypeError, ValueError, KeyError):
-            pass
+        return self._setStickOrientation("y", value)
 
     def setDeadzoneSize(self, value):
         value = sc.getStickValue(value)
 
-        if value is not None:
-            self.deadzoneSize = value
+        if value is None:
+            return False
 
-        return self.deadzoneSize
+        self.deadzoneSize = value
+        return True
 
     def setKbModeXOffset(self, value):
-        value = sc.getStickValue(value)
+        value = sc.getIntValue(value, sc.KB_MODE_VALUE_MIN, sc.KB_MODE_VALUE_MAX)
 
-        if value is not None:
-            self.kbModeOffsets["x"] = value
+        if value is None:
+            return False
 
-        return self.kbModeOffsets["x"]
+        self.kbModeOffsets["x"] = value
+        return True
 
     def setKbModeYOffset(self, value):
-        value = sc.getStickValue(value)
+        value = sc.getIntValue(value, sc.KB_MODE_VALUE_MIN, sc.KB_MODE_VALUE_MAX)
 
-        if value is not None:
-            self.kbModeOffsets["y"] = value
+        if value is None:
+            return False
 
-        return self.kbModeOffsets["y"]
+        self.kbModeOffsets["y"] = value
+        return True
 
     def setKbModeYConeEnd(self, value):
-        value = sc.getStickValue(value)
+        value = sc.getIntValue(value, sc.KB_MODE_VALUE_MIN, sc.KB_MODE_VALUE_MAX)
 
-        if value is not None:
-            self.kbModeYConeEnd = value
+        if value is None:
+            return False
 
-        return self.kbModeYConeEnd
+        self.kbModeYConeEnd = value
+        return True
 
     def loadFromFile(self):
         configData = None
@@ -159,24 +171,49 @@ class Config:
             # Missing or corrupt config file: keep the defaults.
             pass
 
-        if configData:
-            if "stickBoundaries" in configData:
-                self.stickBoundaries = configData["stickBoundaries"]
+        if not isinstance(configData, dict):
+            return
 
-            if "stickAxesOrientation" in configData:
-                self.stickAxesOrientation = configData["stickAxesOrientation"]
+        # Validate each global field before applying it. A missing or
+        # invalid field keeps its default while the other fields still load.
+        boundaries = configData.get("stickBoundaries")
 
-            if "deadzoneSize" in configData:
-                self.deadzoneSize = configData["deadzoneSize"]
+        if isinstance(boundaries, dict):
+            self._setStickBoundary("lowX", boundaries.get("lowX"))
+            self._setStickBoundary("highX", boundaries.get("highX"))
+            self._setStickBoundary("lowY", boundaries.get("lowY"))
+            self._setStickBoundary("highY", boundaries.get("highY"))
 
-            if "kbModeOffsets" in configData:
-                self.kbModeOffsets = configData["kbModeOffsets"]
+        orientation = configData.get("stickAxesOrientation")
 
-            if "kbModeYConeEnd" in configData:
-                self.kbModeYConeEnd = configData["kbModeYConeEnd"]
+        if isinstance(orientation, dict):
+            if "x" in orientation:
+                self._setStickOrientation("x", orientation["x"])
 
-            if "profiles" in configData:
-                self.profiles = configData["profiles"]
+            if "y" in orientation:
+                self._setStickOrientation("y", orientation["y"])
+
+        if "deadzoneSize" in configData:
+            self.setDeadzoneSize(configData["deadzoneSize"])
+
+        kbModeOffsets = configData.get("kbModeOffsets")
+
+        if isinstance(kbModeOffsets, dict):
+            if "x" in kbModeOffsets:
+                self.setKbModeXOffset(kbModeOffsets["x"])
+
+            if "y" in kbModeOffsets:
+                self.setKbModeYOffset(kbModeOffsets["y"])
+
+        if "kbModeYConeEnd" in configData:
+            self.setKbModeYConeEnd(configData["kbModeYConeEnd"])
+
+        # Profile normalization arrives in a later phase; for now only a
+        # list replaces the defaults so other shapes can't crash startup.
+        profiles = configData.get("profiles")
+
+        if isinstance(profiles, list):
+            self.profiles = profiles
 
     def saveToFile(self):
         configData = {

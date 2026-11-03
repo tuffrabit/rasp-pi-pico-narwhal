@@ -35,28 +35,40 @@ class StickDeadzone:
             self.deadzoneBuffer = sc.constrain(sc.rangeMap(value, 0, 32768, 0.0, 1.0), 0.0, 1.0)
 
     def setXHigh(self, xHigh):
-        value = sc.getStickValue(xHigh)
+        value = sc.getBoundaryValue(xHigh, self.xLow, False)
 
-        if value is not None:
-            self.xHigh = value
+        if value is None:
+            return False
+
+        self.xHigh = value
+        return True
 
     def setXLow(self, xLow):
-        value = sc.getStickValue(xLow)
+        value = sc.getBoundaryValue(xLow, self.xHigh, True)
 
-        if value is not None:
-            self.xLow = value
+        if value is None:
+            return False
+
+        self.xLow = value
+        return True
 
     def setYHigh(self, yHigh):
-        value = sc.getStickValue(yHigh)
+        value = sc.getBoundaryValue(yHigh, self.yLow, False)
 
-        if value is not None:
-            self.yHigh = value
+        if value is None:
+            return False
+
+        self.yHigh = value
+        return True
 
     def setYLow(self, yLow):
-        value = sc.getStickValue(yLow)
+        value = sc.getBoundaryValue(yLow, self.yHigh, True)
 
-        if value is not None:
-            self.yLow = value
+        if value is None:
+            return False
+
+        self.yLow = value
+        return True
 
     def diff(self, x, y):
         if x > y:

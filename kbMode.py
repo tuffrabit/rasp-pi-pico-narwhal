@@ -10,13 +10,31 @@ class KbMode:
         self.result = [False, False, False, False]
 
     def setXStartOffset(self, value):
+        value = sc.getIntValue(value, sc.KB_MODE_VALUE_MIN, sc.KB_MODE_VALUE_MAX)
+
+        if value is None:
+            return False
+
         self.xStartOffset = value
+        return True
 
     def setYStartOffset(self, value):
+        value = sc.getIntValue(value, sc.KB_MODE_VALUE_MIN, sc.KB_MODE_VALUE_MAX)
+
+        if value is None:
+            return False
+
         self.yStartOffset = value
+        return True
 
     def setYConeEnd(self, value):
+        value = sc.getIntValue(value, sc.KB_MODE_VALUE_MIN, sc.KB_MODE_VALUE_MAX)
+
+        if value is None:
+            return False
+
         self.yConeEnd = value
+        return True
 
     def setKeyboard(self, keyboard):
         self.keyboard = keyboard
