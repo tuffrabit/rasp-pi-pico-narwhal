@@ -15,6 +15,7 @@ from config import Config
 from profileManager import ProfileManager
 from profileHelper import ProfileHelper
 from keyConverter import KeyConverter
+from actionManager import ActionManager
 from serialHelper import SerialHelper
 
 # Performance stuff
@@ -25,6 +26,13 @@ from serialHelper import SerialHelper
 # ActionType: HAT = 4
 
 # Globals
+# ActionManager registers the matrix keys last so pending six-key overflow
+# fills in stable matrix order.
+MATRIX_KEY_COUNT = 20
+# CircuitPython's keypad event queue holds 64 events by default; the extra
+# margin bounds the drain even if a stubbed queue never reports empty.
+MATRIX_EVENT_DRAIN_LIMIT = 128
+
 keyboard = Keyboard(usb_hid.devices)
 gp = Gamepad(usb_hid.devices)
 stickDeadzone = StickDeadzone()
@@ -35,59 +43,29 @@ config = Config()
 profileManager = ProfileManager()
 profileHelper = ProfileHelper()
 keyConverter = KeyConverter()
+actionManager = ActionManager(keyboard, gp)
 serialHelper = SerialHelper()
 currentProfile = None
 isKeyboardMode = False
-keys = None
-keyboardModeStickUpKey = None
-keyboardModeStickDownKey = None
-keyboardModeStickLeftKey = None
-keyboardModeStickRightKey = None
-stickButton = None
-thumbAction = None
-dpadUpAction = None
-dpadDownAction = None
-dpadLeftAction = None
-dpadRightAction = None
-dpadCenterAction = None
 stickXOrientationAxis = 0
 stickXOrientationReverse = False
 stickYOrientationAxis = 1
 stickYOrientationReverse = True
 
-actionStates = {
-    "stickButton": False,
-    "thumbButton": False,
-    "kbUp": False,
-    "kbDown": False,
-    "kbLeft": False,
-    "kbRight": False,
-    "dpadUp": False,
-    "dpadDown": False,
-    "dpadLeft": False,
-    "dpadRight": False,
-    "dpadCenter": False,
-    "0": False,
-    "1": False,
-    "2": False,
-    "3": False,
-    "4": False,
-    "5": False,
-    "6": False,
-    "7": False,
-    "8": False,
-    "9": False,
-    "10": False,
-    "11": False,
-    "12": False,
-    "13": False,
-    "14": False,
-    "15": False,
-    "16": False,
-    "17": False,
-    "18": False,
-    "19": False
-}
+actionManager.registerControl("stickButton")
+actionManager.registerControl("thumbButton")
+actionManager.registerControl("kbUp")
+actionManager.registerControl("kbDown")
+actionManager.registerControl("kbLeft")
+actionManager.registerControl("kbRight")
+actionManager.registerControl("dpadUp", hatDirection="up")
+actionManager.registerControl("dpadDown", hatDirection="down")
+actionManager.registerControl("dpadLeft", hatDirection="left")
+actionManager.registerControl("dpadRight", hatDirection="right")
+actionManager.registerControl("dpadCenter")
+
+for matrixKeyIndex in range(MATRIX_KEY_COUNT):
+    actionManager.registerControl(str(matrixKeyIndex))
 
 # Config
 config.loadFromFile()
@@ -183,18 +161,7 @@ def setRunValuesFromCurrentProfile():
     global currentProfile
     global led
     global isKeyboardMode
-    global keys
-    global keyboardModeStickUpKey
-    global keyboardModeStickDownKey
-    global keyboardModeStickLeftKey
-    global keyboardModeStickRightKey
-    global stickButton
-    global thumbAction
-    global dpadUpAction
-    global dpadDownAction
-    global dpadLeftAction
-    global dpadRightAction
-    global dpadCenterAction
+    global actionManager
 
     rgbLedValues = profileHelper.getRGBLedValues(currentProfile)
 
@@ -202,82 +169,31 @@ def setRunValuesFromCurrentProfile():
         led.fadeToRGBLedColor(rgbLedValues["red"], rgbLedValues["green"], rgbLedValues["blue"])
 
     isKeyboardMode = profileHelper.getIsKbModeEnabled(currentProfile)
-    keys = profileHelper.getKeypadBindings(currentProfile)
-    keyboardModeStickUpKey = profileHelper.getKbModeBinding("up", currentProfile)
-    keyboardModeStickDownKey = profileHelper.getKbModeBinding("down", currentProfile)
-    keyboardModeStickLeftKey = profileHelper.getKbModeBinding("left", currentProfile)
-    keyboardModeStickRightKey = profileHelper.getKbModeBinding("right", currentProfile)
-    stickButton = profileHelper.getJoystickButton(currentProfile)
-    thumbAction = profileHelper.getThumbButton(currentProfile)
-    dpadUpAction = profileHelper.getDpadBinding("up", currentProfile)
-    dpadDownAction = profileHelper.getDpadBinding("down", currentProfile)
-    dpadLeftAction = profileHelper.getDpadBinding("left", currentProfile)
-    dpadRightAction = profileHelper.getDpadBinding("right", currentProfile)
-    dpadCenterAction = profileHelper.getDpadBinding("center", currentProfile)
+    keypadBindings = profileHelper.getKeypadBindings(currentProfile)
 
-def handleAction(stateIndex, trigger, action):
-    global goToNextProfile
-    global goToPreviousProfile
+    actionManager.setBinding("stickButton", profileHelper.getJoystickButton(currentProfile))
+    actionManager.setBinding("thumbButton", profileHelper.getThumbButton(currentProfile))
+    actionManager.setBinding("kbUp", profileHelper.getKbModeBinding("up", currentProfile))
+    actionManager.setBinding("kbDown", profileHelper.getKbModeBinding("down", currentProfile))
+    actionManager.setBinding("kbLeft", profileHelper.getKbModeBinding("left", currentProfile))
+    actionManager.setBinding("kbRight", profileHelper.getKbModeBinding("right", currentProfile))
+    actionManager.setBinding("dpadUp", profileHelper.getDpadBinding("up", currentProfile))
+    actionManager.setBinding("dpadDown", profileHelper.getDpadBinding("down", currentProfile))
+    actionManager.setBinding("dpadLeft", profileHelper.getDpadBinding("left", currentProfile))
+    actionManager.setBinding("dpadRight", profileHelper.getDpadBinding("right", currentProfile))
+    actionManager.setBinding("dpadCenter", profileHelper.getDpadBinding("center", currentProfile))
 
-    if action is None or action["type"] is None or action["action"] is None:
-        return
+    for matrixKeyIndex in range(MATRIX_KEY_COUNT):
+        matrixBinding = None
 
-    if trigger != actionStates[stateIndex]:
-        actionStates[stateIndex] = trigger
+        if keypadBindings is not None and matrixKeyIndex < len(keypadBindings):
+            matrixBinding = keypadBindings[matrixKeyIndex]
 
-        if action["type"] == 1:
-            if trigger:
-                keyboard.press(action["action"])
-            else:
-                keyboard.release(action["action"])
-        elif action["type"] == 2:
-            if trigger:
-                gp.press_buttons(action["action"])
-            else:
-                gp.release_buttons(action["action"])
-        elif action["type"] == 3:
-            if trigger:
-                if action["action"] == "nextProfile":
-                    goToNextProfile = True
-                elif action["action"] == "previousProfile":
-                    goToPreviousProfile = True
-        elif action["type"] == 4:
-            updateHat()
-
-def updateHat():
-    # Recompute the hat (POV) position from the dpad states. Intended to be
-    # called when a dpad direction bound to the "hat" action changes state.
-    up = actionStates["dpadUp"]
-    right = actionStates["dpadRight"]
-    down = actionStates["dpadDown"]
-    left = actionStates["dpadLeft"]
-
-    hatValue = 0
-
-    if up and not down:
-        hatValue = 1
-        if right and not left:
-            hatValue = 2
-        elif left and not right:
-            hatValue = 8
-    elif down and not up:
-        hatValue = 5
-        if right and not left:
-            hatValue = 4
-        elif left and not right:
-            hatValue = 6
-    elif right and not left:
-        hatValue = 3
-    elif left and not right:
-        hatValue = 7
-
-    gp.set_hat(hatValue)
+        actionManager.setBinding(str(matrixKeyIndex), matrixBinding)
 
 setRunValuesFromCurrentProfile()
 resolveStickOrientation()
 
-goToNextProfile = False
-goToPreviousProfile = False
 reloadCurrentProfile = False
 
 doReadStickValues = False
@@ -300,13 +216,13 @@ while True:
         elif "orientationChange" in commandAction and commandAction["orientationChange"]:
             resolveStickOrientation()
 
-    handleAction("stickButton", not joySelectButton.value, stickButton)
-    handleAction("thumbButton", not thumbButton.value, thumbAction)
-    handleAction("dpadUp", not dpadUpButton.value, dpadUpAction)
-    handleAction("dpadDown", not dpadDownButton.value, dpadDownAction)
-    handleAction("dpadLeft", not dpadLeftButton.value, dpadLeftAction)
-    handleAction("dpadRight", not dpadRightButton.value, dpadRightAction)
-    handleAction("dpadCenter", not dpadCenterButton.value, dpadCenterAction)
+    actionManager.setPhysicalState("stickButton", not joySelectButton.value)
+    actionManager.setPhysicalState("thumbButton", not thumbButton.value)
+    actionManager.setPhysicalState("dpadUp", not dpadUpButton.value)
+    actionManager.setPhysicalState("dpadDown", not dpadDownButton.value)
+    actionManager.setPhysicalState("dpadLeft", not dpadLeftButton.value)
+    actionManager.setPhysicalState("dpadRight", not dpadRightButton.value)
+    actionManager.setPhysicalState("dpadCenter", not dpadCenterButton.value)
 
     stickValues = stick.doStickCalculations(ax, ay, True)
     tempXValue = stickValues[0]
@@ -334,39 +250,44 @@ while True:
 
     if isKeyboardMode:
         up, down, left, right = kbMode.calculateStickInput(stickValues)
-        handleAction("kbUp", up, keyboardModeStickUpKey)
-        handleAction("kbDown", down, keyboardModeStickDownKey)
-        handleAction("kbLeft", left, keyboardModeStickLeftKey)
-        handleAction("kbRight", right, keyboardModeStickRightKey)
+        actionManager.setPhysicalState("kbUp", up)
+        actionManager.setPhysicalState("kbDown", down)
+        actionManager.setPhysicalState("kbLeft", left)
+        actionManager.setPhysicalState("kbRight", right)
     else:
         gp.move_joysticks(x=stickValues[0], y=stickValues[1])
 
-    keyEvent = keyMatrix.events.get()
+    # Drain every queued matrix event in order so a burst can never backlog;
+    # the bound keeps a misbehaving queue from wedging the loop.
+    matrixEventsDrained = 0
 
-    if keyEvent:
+    while matrixEventsDrained < MATRIX_EVENT_DRAIN_LIMIT:
+        keyEvent = keyMatrix.events.get()
+
+        if keyEvent is None:
+            break
+
+        matrixEventsDrained += 1
         keyNumber = keyEvent.key_number
 
-        if keys is not None and keyNumber < len(keys):
-            keyAction = keys[keyNumber]
-            handleAction(str(keyNumber), keyEvent.pressed, keyAction)
+        if keyNumber < MATRIX_KEY_COUNT:
+            actionManager.setPhysicalState(str(keyNumber), keyEvent.pressed)
 
-    if goToNextProfile or goToPreviousProfile:
-        profile = None
+    # Flush aggregated HID once, after all inputs for this iteration.
+    actionManager.applyOutputs()
 
-        if goToNextProfile:
-            profile = profileManager.getNextProfile()
-        elif goToPreviousProfile:
-            profile = profileManager.getPreviousProfile()
+    navigationAction = actionManager.consumeNavigation()
+    profile = None
 
-        goToNextProfile = False
-        goToPreviousProfile = False
+    if navigationAction == "nextProfile":
+        profile = profileManager.getNextProfile()
+    elif navigationAction == "previousProfile":
+        profile = profileManager.getPreviousProfile()
 
-        if profile != None:
-            currentProfile = profile
-            setRunValuesFromCurrentProfile()
-            gp.release_all_buttons()
-            gp.set_hat(0)
-            keyboard.release_all()
+    if profile != None:
+        currentProfile = profile
+        setRunValuesFromCurrentProfile()
+        actionManager.neutralizeOutputs()
 
     if reloadCurrentProfile:
         reloadCurrentProfile = False
@@ -374,6 +295,4 @@ while True:
 
         if currentProfile != None:
             setRunValuesFromCurrentProfile()
-            gp.release_all_buttons()
-            gp.set_hat(0)
-            keyboard.release_all()
+            actionManager.neutralizeOutputs()
