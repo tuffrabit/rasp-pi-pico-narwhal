@@ -1,4 +1,5 @@
 import stickCommon as sc
+from stickDeadzone import MAX_DEADZONE_MAGNITUDE
 
 class Stick:
     def __init__(self):
@@ -15,7 +16,9 @@ class Stick:
     def setDeadzone(self, deadzone):
         self.deadzone = deadzone
         self.mappedDeadzone = sc.rangeMap(deadzone.getDeadzone(), 0, 32768, 0.0, 1.0)
-        self.deadzoneMagnitude = deadzone.deadzoneMagnitude
+        # Clamp defensively; deadzone.deadzoneMagnitude must stay below 1.0
+        # so the scaling denominator can never reach zero or go negative.
+        self.deadzoneMagnitude = sc.constrain(deadzone.deadzoneMagnitude, 0.0, MAX_DEADZONE_MAGNITUDE)
 
     def setXHigh(self, xHigh):
         value = sc.getStickValue(xHigh)

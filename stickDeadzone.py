@@ -1,6 +1,10 @@
 import stickCommon as sc
 import time
 
+# Inclusive maximum for the radial deadzone magnitude. The deadzone scaling
+# formula divides by (1 - deadzoneMagnitude), so the value must stay below 1.0.
+MAX_DEADZONE_MAGNITUDE = 0.99
+
 class StickDeadzone:
     def __init__(self):
         self.deadzone = 0
@@ -126,6 +130,10 @@ class StickDeadzone:
         # command from the app) don't keep growing the deadzone.
         self.deadzone = self.baseDeadzone + 1000
         #self.deadzoneMagnitude = self.originalDeadzoneMagnitude + 0.2
-        self.deadzoneMagnitude = self.originalDeadzoneMagnitude + self.deadzoneBuffer
+        self.deadzoneMagnitude = sc.constrain(
+            self.originalDeadzoneMagnitude + self.deadzoneBuffer,
+            0.0,
+            MAX_DEADZONE_MAGNITUDE,
+        )
         self.upperBoundary = 32768 + self.deadzone
         self.lowerBoundary = 32768 - self.deadzone
