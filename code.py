@@ -278,7 +278,22 @@ while True:
     # Flush aggregated HID once, after all inputs for this iteration.
     actionManager.applyOutputs()
 
-    navigationAction = actionManager.consumeNavigation()
+    # Profile changes are layer-like. A serial active-profile selection
+    # applies first, then at most one physical navigation request; outputs
+    # rebuild only once, for the final profile.
+    transitioned = False
+
+    if reloadCurrentProfile:
+        reloadCurrentProfile = False
+        selectedProfile = profileManager.getCurrentProfile()
+
+        if selectedProfile != None:
+            currentProfile = selectedProfile
+            actionManager.beginProfileTransition()
+            setRunValuesFromCurrentProfile()
+            transitioned = True
+
+    navigationAction, navigationOrigin = actionManager.consumeNavigation()
     profile = None
 
     if navigationAction == "nextProfile":
@@ -288,13 +303,11 @@ while True:
 
     if profile != None:
         currentProfile = profile
+
+        if not transitioned:
+            actionManager.beginProfileTransition()
+
         setRunValuesFromCurrentProfile()
-        actionManager.neutralizeOutputs()
-
-    if reloadCurrentProfile:
-        reloadCurrentProfile = False
-        currentProfile = profileManager.getCurrentProfile()
-
-        if currentProfile != None:
-            setRunValuesFromCurrentProfile()
-            actionManager.neutralizeOutputs()
+        actionManager.applyProfileTransition(navigationOrigin)
+    elif transitioned:
+        actionManager.applyProfileTransition()

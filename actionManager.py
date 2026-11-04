@@ -14,6 +14,17 @@ _MODIFIER_FIRST_KEYCODE = 0xE0
 _MODIFIER_LAST_KEYCODE = 0xE7
 _MAX_REGULAR_KEYS = 6
 
+
+def _isProfileNavigation(binding):
+    # A profile-next/previous binding. Held controls with one of these on
+    # either side of a transition are latched so they cannot repeat the
+    # navigation or activate an unrelated binding in the new profile.
+    return (
+        binding is not None
+        and binding["type"] == 3
+        and (binding["action"] == "nextProfile" or binding["action"] == "previousProfile")
+    )
+
 class ActionManager:
     def __init__(self, keyboard, gamepad):
         self.keyboard = keyboard
@@ -24,11 +35,14 @@ class ActionManager:
         self._physical = {}
         # (stateName, direction) pairs for controls that can feed the hat
         self._hatDirections = []
-        # Controls held across a profile change; they stay inert until released
-        self._controlsNeedingRelease = set()
-        # Pending profile navigation edges (one slot per direction)
+        # Controls latched by a profile transition; they produce no keyboard,
+        # gamepad, hat, or profile output until physically released.
+        self._latchedControls = set()
+        # Pending profile navigation edges and the control that edged them
         self._navNext = False
         self._navPrevious = False
+        self._navNextOrigin = None
+        self._navPreviousOrigin = None
         # Successfully applied HID output, used to calculate deltas
         self._appliedKeys = []
         self._appliedModifierMask = 0
@@ -36,6 +50,9 @@ class ActionManager:
         self._appliedHat = 0
         # Reused scratch buffer; no new list is created per recompute
         self._desiredKeys = []
+        # Snapshot of bindings taken by beginProfileTransition so the latch
+        # rules can compare old and new bindings after the new set is installed
+        self._oldBindings = {}
         self._dirty = False
 
     def registerControl(self, name, hatDirection=None):
@@ -63,9 +80,9 @@ class ActionManager:
         self._physical[name] = pressed
 
         if not pressed:
-            self._controlsNeedingRelease.discard(name)
+            self._latchedControls.discard(name)
 
-        if pressed and name not in self._controlsNeedingRelease:
+        if pressed and name not in self._latchedControls:
             binding = self._bindings[name]
 
             if binding is not None and binding["type"] == 3:
@@ -73,8 +90,10 @@ class ActionManager:
                 # never from output reconciliation.
                 if binding["action"] == "nextProfile":
                     self._navNext = True
+                    self._navNextOrigin = name
                 elif binding["action"] == "previousProfile":
                     self._navPrevious = True
+                    self._navPreviousOrigin = name
 
         self._dirty = True
 
@@ -84,16 +103,25 @@ class ActionManager:
     def consumeNavigation(self):
         # Mirrors the old code.py semantics: when both directions were edged
         # in one iteration, next wins and the pending previous is dropped.
+        # Returns (action, originName), or (None, None) when nothing is
+        # pending; originName is the control whose press edged the request.
         if self._navNext:
+            action = "nextProfile"
+            origin = self._navNextOrigin
             self._navNext = False
+            self._navNextOrigin = None
             self._navPrevious = False
-            return "nextProfile"
+            self._navPreviousOrigin = None
+            return (action, origin)
 
         if self._navPrevious:
+            action = "previousProfile"
+            origin = self._navPreviousOrigin
             self._navPrevious = False
-            return "previousProfile"
+            self._navPreviousOrigin = None
+            return (action, origin)
 
-        return None
+        return (None, None)
 
     def _computeHat(self):
         up = False
@@ -104,7 +132,7 @@ class ActionManager:
         for entry in self._hatDirections:
             name = entry[0]
 
-            if name in self._controlsNeedingRelease:
+            if name in self._latchedControls:
                 continue
 
             binding = self._bindings[name]
@@ -156,7 +184,7 @@ class ActionManager:
         desiredButtonMask = 0
 
         for name in self._bindings:
-            if not self._physical[name] or name in self._controlsNeedingRelease:
+            if not self._physical[name] or name in self._latchedControls:
                 continue
 
             binding = self._bindings[name]
@@ -249,31 +277,56 @@ class ActionManager:
             self.gamepad.set_hat(hatValue)
             self._appliedHat = hatValue
 
-    def neutralizeOutputs(self):
-        # Phase 5 neutral-first profile transition: release everything applied,
-        # and require held controls to be released before their (new) bindings
-        # can activate again. This replaces the old stale-actionStates policy;
-        # phase 7 replaces this behavior with immediate remapping.
-        if self._appliedKeys or self._appliedModifierMask:
-            self.keyboard.release_all()
+    def beginProfileTransition(self):
+        # Snapshot the current bindings. The caller installs the new profile's
+        # bindings next and then calls applyProfileTransition(); the snapshot
+        # lets the latch rules see both the old and the new binding of every
+        # held control even though the bindings were replaced in place.
+        oldBindings = self._oldBindings
+        oldBindings.clear()
 
-        self._appliedKeys.clear()
-        self._appliedModifierMask = 0
+        for name in self._bindings:
+            oldBindings[name] = self._bindings[name]
 
-        if self._appliedButtonMask or self._appliedHat:
-            self.gamepad.release_all_buttons()
-            self.gamepad.set_hat(0)
+    def applyProfileTransition(self, originName=None):
+        # Immediate layer-style remap, shared by navigation and serial active-
+        # profile selection. Held ordinary controls activate their new
+        # bindings right away; applyOutputs diffs the old and new desired
+        # output, so an output that is equivalent in both profiles stays
+        # pressed instead of getting a release/repress pair.
+        physical = self._physical
+        latch = self._latchedControls
 
-        self._appliedButtonMask = 0
-        self._appliedHat = 0
+        # A latch always ends on physical release; drop any stale entries.
+        released = []
 
-        needingRelease = self._controlsNeedingRelease
-        needingRelease.clear()
+        for name in latch:
+            if not physical.get(name, False):
+                released.append(name)
 
-        for name in self._physical:
-            if self._physical[name]:
-                needingRelease.add(name)
+        for name in released:
+            latch.discard(name)
+
+        # Latch the control that initiated the change, plus every other held
+        # control whose old or new binding is profile navigation. A latched
+        # control produces no keyboard, gamepad, hat, or further profile
+        # action until it is released, so the layer switch control cannot
+        # repeat or activate an unrelated binding in the new profile.
+        for name in physical:
+            if not physical[name]:
+                continue
+
+            if name == originName:
+                latch.add(name)
+            elif name not in latch and (
+                _isProfileNavigation(self._oldBindings.get(name))
+                or _isProfileNavigation(self._bindings[name])
+            ):
+                latch.add(name)
 
         self._navNext = False
         self._navPrevious = False
+        self._navNextOrigin = None
+        self._navPreviousOrigin = None
         self._dirty = True
+        self.applyOutputs()
