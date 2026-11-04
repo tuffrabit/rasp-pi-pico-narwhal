@@ -57,6 +57,11 @@ class Gamepad:
         self._joy_z = 0
         self._joy_r_z = 0
 
+        # Set when a logical setting changes, cleared when a report carrying
+        # that state is successfully sent. A failed send leaves this set so
+        # the same state can be resent.
+        self._state_changed = False
+
         # Send an initial report to test if HID device is ready.
         # If not, wait a bit and try once more.
         try:
@@ -68,19 +73,27 @@ class Gamepad:
     def press_buttons(self, *buttons):
         """Press and hold the given buttons."""
         for button in buttons:
-            self._buttons_state |= 1 << self._validate_button_number(button) - 1
+            bit = 1 << self._validate_button_number(button) - 1
+            if not self._buttons_state & bit:
+                self._buttons_state |= bit
+                self._state_changed = True
         self._send()
 
     def release_buttons(self, *buttons):
         """Release the given buttons."""
         for button in buttons:
-            self._buttons_state &= ~(1 << self._validate_button_number(button) - 1)
+            bit = 1 << self._validate_button_number(button) - 1
+            if self._buttons_state & bit:
+                self._buttons_state &= ~bit
+                self._state_changed = True
         self._send()
 
     def release_all_buttons(self):
         """Release all the buttons."""
 
-        self._buttons_state = 0
+        if self._buttons_state:
+            self._buttons_state = 0
+            self._state_changed = True
         self._send()
 
     def click_buttons(self, *buttons):
@@ -102,20 +115,35 @@ class Gamepad:
             gp.move_joysticks(0, 0, 0, 0)
         """
         if x is not None:
-            self._joy_x = self._validate_joystick_value(x)
+            x = self._validate_joystick_value(x)
+            if x != self._joy_x:
+                self._joy_x = x
+                self._state_changed = True
         if y is not None:
-            self._joy_y = self._validate_joystick_value(y)
+            y = self._validate_joystick_value(y)
+            if y != self._joy_y:
+                self._joy_y = y
+                self._state_changed = True
         if z is not None:
-            self._joy_z = self._validate_joystick_value(z)
+            z = self._validate_joystick_value(z)
+            if z != self._joy_z:
+                self._joy_z = z
+                self._state_changed = True
         if r_z is not None:
-            self._joy_r_z = self._validate_joystick_value(r_z)
+            r_z = self._validate_joystick_value(r_z)
+            if r_z != self._joy_r_z:
+                self._joy_r_z = r_z
+                self._state_changed = True
         self._send()
 
     def set_hat(self, value):
         """Set and send the hat (POV) switch position.
         ``value`` must be in the range 0-8: 1-8 are directions
         clockwise from up (1=up, 3=right, 5=down, 7=left), 0 is neutral."""
-        self._hat = self._validate_hat_value(value)
+        value = self._validate_hat_value(value)
+        if value != self._hat:
+            self._hat = value
+            self._state_changed = True
         self._send()
 
     def reset_all(self):
@@ -131,7 +159,12 @@ class Gamepad:
     def _send(self, always=False):
         """Send a report with all the existing settings.
         If ``always`` is ``False`` (the default), send only if there have been changes.
+        Pack and update the last-sent marker only when the send succeeds, so a
+        failed send can be distinguished from an unchanged state and retried.
         """
+        if not (always or self._state_changed):
+            return
+
         struct.pack_into(
             "<HBbbbb",
             self._report,
@@ -144,10 +177,10 @@ class Gamepad:
             self._joy_r_z,
         )
 
-        if always or self._last_report != self._report:
-            self._gamepad_device.send_report(self._report)
-            # Remember what we sent, without allocating new storage.
-            self._last_report[:] = self._report
+        self._gamepad_device.send_report(self._report)
+        # Remember what we sent, without allocating new storage.
+        self._last_report[:] = self._report
+        self._state_changed = False
 
     @staticmethod
     def _validate_button_number(button):
