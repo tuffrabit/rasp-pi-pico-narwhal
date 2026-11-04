@@ -270,12 +270,21 @@ class Config:
     def loadFromFile(self):
         configData = None
 
-        try:
-            with open('config.json', 'r') as configFilePointer:
-                configData = json.load(configFilePointer)
-        except Exception:
-            # Missing or corrupt config file: keep the defaults.
-            pass
+        # Prefer the current config; if it is missing, unreadable, or not a
+        # JSON object, fall back to the backup written by the last save. If
+        # both fail, the defaults from __init__ remain in effect.
+        for configFileName in ('config.json', 'config.bak'):
+            try:
+                with open(configFileName, 'r') as configFilePointer:
+                    loadedData = json.load(configFilePointer)
+
+                if isinstance(loadedData, dict):
+                    configData = loadedData
+                    break
+            except (OSError, ValueError):
+                # OSError: file missing or unreadable. ValueError: JSON
+                # decode failure. Either way, try the next file.
+                pass
 
         if not isinstance(configData, dict):
             return
@@ -329,34 +338,94 @@ class Config:
             "profiles": self.profiles
         }
 
+        # The complete serialized string must be retained before writing so
+        # the write can be verified against its full length. CircuitPython
+        # file writes to internal flash can short-write; the JSON/file APIs
+        # do not provide a serialize-to-file shortcut that would avoid this
+        # copy, so a partial document is never trusted.
         configJson = json.dumps(configData)
-        written = 0
+        configFile = None
 
         try:
-            with open('config.tmp', 'w') as f:
-                written = f.write(configJson)
-        except Exception as e:
+            configFile = open('config.tmp', 'w')
+            written = configFile.write(configJson)
+            configFile.close()
+            configFile = None
+        except OSError as e:
             # Most common cause: filesystem is read-only because the device
             # booted with the thumb button held (host-drive mode). Saving
             # requires booting without it held so boot.py remounts "/" writable.
             print(f'Config save failed: {e}')
             return False
+        finally:
+            if configFile is not None:
+                try:
+                    configFile.close()
+                except OSError:
+                    pass
 
-        if written > 0:
-            # Rename over the old file so a power loss mid-save can't
-            # leave a half-written config.json behind.
+        if written != len(configJson):
+            # Short write: the temporary file is incomplete and must never
+            # be promoted or left for recovery to pick up.
             try:
-                os.rename('config.tmp', 'config.json')
+                os.remove('config.tmp')
             except OSError:
-                # Some builds won't rename over an existing file.
-                os.remove('config.json')
-                os.rename('config.tmp', 'config.json')
+                pass
 
-            return True
-        else:
             return False
 
+        # Rotate the old config aside, then promote the complete temporary
+        # file. The backup is the recovery copy if power is lost before the
+        # final rename completes. The renames are not claimed to be atomic:
+        # on filesystems that cannot replace an existing destination, the
+        # explicit remove-first ordering keeps each step bounded.
+        try:
+            os.remove('config.bak')
+        except OSError:
+            # A stale backup may simply not exist; a real filesystem problem
+            # surfaces as a failure of the renames below.
+            pass
+
+        try:
+            os.stat('config.json')
+            configExists = True
+        except OSError:
+            # First save on a fresh device: there is nothing to back up.
+            configExists = False
+
+        if configExists:
+            try:
+                os.rename('config.json', 'config.bak')
+            except OSError as e:
+                print(f'Config backup rotation failed: {e}')
+
+                try:
+                    os.remove('config.tmp')
+                except OSError:
+                    pass
+
+                return False
+
+        try:
+            os.rename('config.tmp', 'config.json')
+        except OSError as e:
+            print(f'Config save failed: {e}')
+
+            try:
+                os.remove('config.tmp')
+            except OSError:
+                pass
+
+            return False
+
+        return True
+
     def getDataJson(self):
+        # The management protocol expects the save data as a JSON string
+        # inside the response. Producing it requires a temporary config
+        # dictionary plus its serialized copy; both are transient per
+        # command and reclaimed by the garbage collector, so repeated
+        # getSaveData requests do not grow retained memory.
         configData = {
             "stickBoundaries": self.stickBoundaries,
             "stickAxesOrientation": self.stickAxesOrientation,
