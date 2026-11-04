@@ -166,7 +166,7 @@ def setRunValuesFromCurrentProfile():
     rgbLedValues = profileHelper.getRGBLedValues(currentProfile)
 
     if rgbLedValues is not None:
-        led.fadeToRGBLedColor(rgbLedValues["red"], rgbLedValues["green"], rgbLedValues["blue"])
+        led.startRGBFade(rgbLedValues["red"], rgbLedValues["green"], rgbLedValues["blue"])
 
     isKeyboardMode = profileHelper.getIsKbModeEnabled(currentProfile)
     keypadBindings = profileHelper.getKeypadBindings(currentProfile)
@@ -215,6 +215,8 @@ while True:
             doReadStickValues = True
         elif "orientationChange" in commandAction and commandAction["orientationChange"]:
             resolveStickOrientation()
+
+    led.update()
 
     actionManager.setPhysicalState("stickButton", not joySelectButton.value)
     actionManager.setPhysicalState("thumbButton", not thumbButton.value)
