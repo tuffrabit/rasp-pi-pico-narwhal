@@ -10,8 +10,17 @@ class Stick:
         self.yLow = 15000
         self.mappedDeadzone = 0
         self.deadzoneMagnitude = 0
+        self._recalculateConstants()
         # Reused every call so the main loop doesn't allocate.
         self.result = [0, 0]
+
+    def _recalculateConstants(self):
+        self._xScale = 2.0 / (self.xHigh - self.xLow)
+        self._xOffset = -1.0 - self.xLow * self._xScale
+        self._yScale = 2.0 / (self.yHigh - self.yLow)
+        self._yOffset = -1.0 - self.yLow * self._yScale
+        self._deadzoneMagnitudeSquared = self.deadzoneMagnitude * self.deadzoneMagnitude
+        self._deadzoneDenominator = 1.0 - self.deadzoneMagnitude
 
     def setDeadzone(self, deadzone):
         self.deadzone = deadzone
@@ -19,6 +28,7 @@ class Stick:
         # Clamp defensively; deadzone.deadzoneMagnitude must stay below 1.0
         # so the scaling denominator can never reach zero or go negative.
         self.deadzoneMagnitude = sc.constrain(deadzone.deadzoneMagnitude, 0.0, MAX_DEADZONE_MAGNITUDE)
+        self._recalculateConstants()
 
     def setXHigh(self, xHigh):
         value = sc.getBoundaryValue(xHigh, self.xLow, False)
@@ -27,6 +37,7 @@ class Stick:
             return False
 
         self.xHigh = value
+        self._recalculateConstants()
         return True
 
     def setXLow(self, xLow):
@@ -36,6 +47,7 @@ class Stick:
             return False
 
         self.xLow = value
+        self._recalculateConstants()
         return True
 
     def setYHigh(self, yHigh):
@@ -45,6 +57,7 @@ class Stick:
             return False
 
         self.yHigh = value
+        self._recalculateConstants()
         return True
 
     def setYLow(self, yLow):
@@ -54,6 +67,7 @@ class Stick:
             return False
 
         self.yLow = value
+        self._recalculateConstants()
         return True
 
     def doStickCalculations(self, analogX, analogY, constrainDeadzone = False):
@@ -62,16 +76,44 @@ class Stick:
         yStick = analogY.value
 
         if constrainDeadzone:
-            x = sc.constrain(sc.rangeMap(xStick, self.xLow, self.xHigh, -1.0, 1.0), -1.0, 1.0)
-            y = sc.constrain(sc.rangeMap(yStick, self.yLow, self.yHigh, -1.0, 1.0), -1.0, 1.0)
-            magnitude = sc.magnitude(x, y)
+            xScale = self._xScale
+            xOffset = self._xOffset
+            yScale = self._yScale
+            yOffset = self._yOffset
+            deadzoneMagnitude = self.deadzoneMagnitude
 
-            if magnitude > self.deadzoneMagnitude:
-                factor = (magnitude - self.deadzoneMagnitude) / (1 - self.deadzoneMagnitude)
+            if xStick <= self.xLow:
+                x = -1.0
+            elif xStick >= self.xHigh:
+                x = 1.0
+            else:
+                x = xStick * xScale + xOffset
+
+            if yStick <= self.yLow:
+                y = -1.0
+            elif yStick >= self.yHigh:
+                y = 1.0
+            else:
+                y = yStick * yScale + yOffset
+
+            if x * x + y * y > self._deadzoneMagnitudeSquared:
+                magnitude = sc.magnitude(x, y)
+                factor = (magnitude - deadzoneMagnitude) / self._deadzoneDenominator
                 mappedX = sc.rangeMap(x / magnitude * factor, -1.0, 1.0, -127, 127)
                 mappedY = sc.rangeMap(y / magnitude * factor, -1.0, 1.0, -127, 127)
-                xStick = int(sc.constrain(mappedX, -127, 127))
-                yStick = int(sc.constrain(mappedY, -127, 127))
+
+                if mappedX < -127:
+                    mappedX = -127
+                elif mappedX > 127:
+                    mappedX = 127
+
+                if mappedY < -127:
+                    mappedY = -127
+                elif mappedY > 127:
+                    mappedY = 127
+
+                xStick = int(mappedX)
+                yStick = int(mappedY)
             else:
                 xStick = 0
                 yStick = 0
